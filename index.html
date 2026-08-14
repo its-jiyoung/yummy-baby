@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f7f7f2">
+<title>이유식 식단 캘린더</title>
+<style>
+:root{--bg:#f7f7f2;--card:#fff;--ink:#202722;--muted:#89928b;--line:#e8ece6;--sage:#e5f1e8;--sage2:#6d9d79;--sage3:#4d7859;--yellow:#fff0b9;--yellow2:#e1c45a;--lav:#efedf7;--peach:#fae9df;--shadow:0 12px 38px rgba(45,56,47,.07)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Noto Sans KR",sans-serif;letter-spacing:-.025em}
+.app{max-width:1180px;margin:auto;padding:12px 14px calc(92px + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 17px;border-radius:27px;background:#fff;border:1px solid #fff;box-shadow:var(--shadow);position:sticky;top:10px;z-index:20;backdrop-filter:blur(16px)}
+.baby{display:flex;align-items:center;gap:11px}.baby .name{font-size:18px;font-weight:950;line-height:1.2}.baby .sub{font-size:12px;color:#6f7c73;font-weight:750;margin-top:4px}.avatar{width:46px;height:46px;border-radius:17px;background:#edf3ee;display:grid;place-items:center;font-size:24px}.today-badge{padding:9px 12px;border-radius:999px;background:#edf6ef;color:var(--sage3);font-size:12px;font-weight:950}.actions{display:flex;gap:7px}.icon{width:38px;height:38px;border:0;border-radius:13px;background:#fff;box-shadow:0 4px 13px rgba(40,50,43,.06)}
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin:14px 2px 10px}.month{font-size:22px;font-weight:950}.nav{display:flex;gap:6px}.nav button,.today{border:0;background:#fff;border-radius:12px;padding:9px 12px;font-weight:850;box-shadow:0 3px 12px rgba(40,50,43,.05)}.nav button{width:35px;padding:0;font-size:19px}
+.calendar-wrap{background:#fff;border:1px solid var(--line);border-radius:27px;box-shadow:var(--shadow);overflow:hidden}
+.calendar-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}.calendar{min-width:920px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);background:#fafbf8;border-bottom:1px solid var(--line)}
+.week div{text-align:center;padding:11px 6px;font-size:11px;color:#929a94;font-weight:850}.week div:first-child{color:#c27c74}.week div:last-child{color:#7892a2}
+.days{display:grid;grid-template-columns:repeat(7,1fr)}
+.day{min-height:255px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px;background:#fff;cursor:pointer;vertical-align:top}.day:nth-child(7n){border-right:0}.day.muted{background:#fafbf9;opacity:.48}.day.selected{background:#f8fbf8}.day.today{box-shadow:inset 0 3px 0 var(--sage2)}
+.date-row{display:flex;justify-content:space-between;align-items:flex-start}.date{font-size:14px;font-weight:950}.dplus{font-size:9px;color:#9aa29c;margin-top:2px}.meal-count{font-size:9px;color:var(--sage3);font-weight:900;background:var(--sage);padding:4px 6px;border-radius:999px}
+.meals{display:grid;gap:7px;margin-top:10px}.meal{padding:8px;border-radius:14px;background:#f8faf7;border:1px solid #edf0eb;position:relative}.meal.done{background:#f1f7f2;border-color:#dcebe0}.meal.plan{background:#fffdf5;border-style:dashed;border-color:#eadb9d}
+.meal-head{display:flex;justify-content:space-between;align-items:center;padding-right:23px;margin-bottom:5px}.meal-no{font-size:10px;font-weight:950;color:#506057}.time{font-size:8px;color:#9aa19b}.status{position:absolute;right:7px;top:7px;width:18px;height:18px;border:0;border-radius:7px;background:#fff;font-size:10px}.meal.done .status{background:#dfeee4;color:#4f7c5b}.meal.plan .status{background:#fff0b9;color:#856e26}
+.base-line{font-size:8.5px;color:#69746c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.toppings{display:flex;flex-wrap:wrap;gap:3px;margin-top:5px}.chip{font-size:8px;padding:3px 5px;border-radius:6px;background:#e8f2ea;color:#55725d;font-weight:800}.chip.first{background:var(--yellow);color:#6e5b22}.empty-meal{font-size:9px;color:#b0b6b0;padding:4px 0}.add{width:100%;border:1px dashed #cdd7ce;background:#fff;border-radius:10px;padding:6px;color:#7d8d81;font-size:9px;font-weight:850;margin-top:6px}
+.legend{display:flex;gap:14px;padding:10px 13px;color:var(--muted);font-size:10px;background:#fbfcfa}.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px}.dot.plan{background:#eadb9d}.dot.done{background:#b8d9c1}.dot.first{background:#e1c45a}
+.side{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;margin-top:12px}.panel{background:#fff;border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);padding:16px}.panel h2{font-size:16px;margin:0 0 11px}.food-cloud{display:flex;flex-wrap:wrap;gap:7px}.food{padding:8px 10px;border-radius:12px;background:#f3f6f2;font-size:11px;font-weight:800;color:#56635a}.notice{font-size:11px;line-height:1.55;color:#69746c;background:#fff8df;border-radius:14px;padding:10px 12px}.fab{position:fixed;right:max(18px,calc((100vw - 1180px)/2 + 18px));bottom:calc(18px + env(safe-area-inset-bottom));z-index:30;border:0;border-radius:18px;padding:13px 18px;background:#61966d;color:#fff;font-weight:950;box-shadow:0 12px 30px rgba(67,116,79,.24)}
+.overlay{display:none;position:fixed;inset:0;background:rgba(28,34,29,.24);backdrop-filter:blur(10px);z-index:50;padding:16px 12px}.overlay.show{display:flex;align-items:flex-end;justify-content:center}.sheet{width:min(650px,100%);max-height:94vh;overflow:auto;background:#fff;border-radius:28px 28px 18px 18px;padding:18px;box-shadow:0 20px 60px rgba(30,40,33,.18)}.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.sheet h2{margin:0;font-size:18px}.close{width:34px;height:34px;border:0;border-radius:11px;background:#f2f4f1}.section{padding:14px 0;border-top:1px solid var(--line)}.section:first-of-type{border-top:0}.label{font-size:11px;font-weight:900;color:#687269;margin-bottom:7px}.opts{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.opt{border:1px solid var(--line);background:#fff;border-radius:13px;padding:10px 7px;font-size:11px;font-weight:800;color:#56645a}.opt.on{background:#edf7ef;border-color:#b7d7be;color:#4d7958}.input{width:100%;border:1px solid var(--line);background:#fafbf8;border-radius:13px;padding:11px;outline:0}.save{width:100%;border:0;border-radius:14px;padding:13px;background:#659c70;color:#fff;font-weight:950}.secondary{background:#f0f3ef;color:#52705a;margin-top:7px}.danger{background:#fff0ed;color:#c65f55;margin-top:7px}.plan-toggle{display:flex;gap:7px}.toggle{flex:1;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px;font-size:11px;font-weight:900}.toggle.on{background:#fff5cf;border-color:#eadb9d;color:#7b6729}
+.list{display:grid;gap:7px}.row{display:flex;justify-content:space-between;align-items:center;padding:11px 12px;border-radius:13px;background:#f7f8f5;font-size:11px}.small{font-size:10px;color:var(--muted)}
+@media(max-width:700px){.app{padding-left:9px;padding-right:9px}.calendar{min-width:980px}.day{min-height:245px}.side{grid-template-columns:1fr}.today-badge{display:none}}
+
+.auth-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg)}
+.auth-card{width:min(430px,100%);background:#fff;border:1px solid var(--line);border-radius:30px;padding:26px;box-shadow:var(--shadow)}
+.auth-logo{width:64px;height:64px;border-radius:22px;background:#edf3ee;display:grid;place-items:center;font-size:34px;margin:0 auto 14px}
+.auth-title{text-align:center;font-size:25px;font-weight:950}.auth-sub{text-align:center;color:#6f7c73;font-size:12px;font-weight:750;margin:7px 0 22px}
+.auth-tabs{display:flex;gap:6px;background:#f4f6f3;border-radius:14px;padding:4px;margin-bottom:16px}.auth-tab{flex:1;border:0;background:transparent;border-radius:10px;padding:10px;font-weight:900;color:#7b857e}.auth-tab.on{background:#fff;color:#4d7859;box-shadow:0 2px 8px rgba(40,50,43,.06)}
+.auth-msg{font-size:11px;line-height:1.55;padding:10px 12px;border-radius:13px;background:#fff8df;color:#766329;margin-bottom:12px}.auth-error{background:#fff0ed;color:#a94f47}.auth-success{background:#edf7ef;color:#4d7859}
+.auth-form{display:grid;gap:9px}.auth-form .input{background:#fafbf8}.auth-actions{display:grid;gap:8px;margin-top:5px}.auth-link{border:0;background:transparent;color:#5f8168;font-size:11px;font-weight:850;padding:7px}.config-note{font-size:10px;color:#8a938c;line-height:1.5;margin-top:12px;text-align:center}
+.user-pill{font-size:9px;color:#6f7c73;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+<button type="button" class="fab" onclick="openAdd()">＋ 식단 추가</button>
+<script>
+const KEY='baby_food_planner_v3';
+const CONFIG_KEY='yummy_supabase_config_v1';
+const DEFAULT_SUPABASE_URL='https://izweewdjfewtuddg0mhe.supabase.co';
+const DEFAULT_PUBLISHABLE_KEY='PASTE_YOUR_PUBLISHABLE_KEY_HERE';
+let cloudReady=false, cloudSyncTimer=null, loadingCloud=false, authUser=null;
+const defaultState={babies:[{id:'baby1',name:'우리 아기',birth:'2026-04-01'}],activeBaby:'baby1',bases:['쌀','오트밀','쌀 + 오트밀','기타'],toppings:['소고기','닭고기','연어','당근','애호박','감자','청경채','브로콜리','고구마','양파','두부','가지'],plans:{}};
+function getConfig(){try{return JSON.parse(localStorage.getItem(CONFIG_KEY)||'null')||{url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}catch(e){return {url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}}
+let supabaseClient=null;
+function isConfigured(){const c=getConfig();return !!c.url && !!c.key && !c.key.includes('PASTE_YOUR')}
+function initClient(){if(!isConfigured())return false;const c=getConfig();supabaseClient=window.supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});return true}
+function getRedirectUrl(){return /^https?:$/.test(location.protocol)?location.origin+location.pathname:undefined}
+let state=load(), view=new Date(); view.setDate(1), selectedKey=todayKey();
+function load(){try{return {...defaultState,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){return structuredClone(defaultState)}}
+function save(){localStorage.setItem(KEY,JSON.stringify(state));if(cloudReady)queueCloudSync()}
+function fmt(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function parse(k){const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d)}
+function todayKey(){return fmt(new Date())}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0];return b?.birth?Math.floor((parse(k)-parse(b.birth))/86400000)+1:''}
+function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
+function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
+function firstFoods(){const seen=new Set(),first=new Set();Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).sort().forEach(k=>{(state.plans[k]||[]).forEach(m=>[...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x&&!seen.has(x)){seen.add(x);first.add(x)}}))});return first}
+function emoji(x){return ({'소고기':'🥩','닭고기':'🍗','연어':'🐟','당근':'🥕','애호박':'🥒','감자':'🥔','청경채':'🥬','브로콜리':'🥦','고구마':'🍠','양파':'🧅','두부':'⬜','가지':'🍆'})[x]||'🥕'}
+function render(){
+ const baby=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0], first=firstFoods();
+ document.getElementById('app').innerHTML=`<header class="top"><div class="baby"><div class="avatar">👶</div><div><div class="name">${esc(baby.name)}의 냠냠 식단</div><div class="sub">냠냠쩝쩝 맛있게 먹어보자 🥣</div></div></div><div style="display:flex;align-items:center;gap:8px"><div class="user-pill">${esc(authUser?.email||'')}</div><div class="today-badge">오늘 D+${dplus(todayKey())}</div></div><div class="actions"><button type="button" class="icon" onclick="openBabies()">👶</button><button type="button" class="icon" onclick="openSettings()">⚙️</button></div></header>
+ <div class="toolbar"><button class="today" onclick="goToday()">오늘</button><div class="month">${view.getFullYear()}년 ${view.getMonth()+1}월</div><div class="nav"><button onclick="moveMonth(-1)">‹</button><button onclick="moveMonth(1)">›</button></div></div>
+ <section class="calendar-wrap"><div class="calendar-scroll"><div class="calendar"><div class="week">${['일','월','화','수','목','금','토'].map(x=>`<div>${x}</div>`).join('')}</div><div class="days">${cells(view,first).join('')}</div></div></div><div class="legend"><span><i class="dot plan"></i> 예정</span><span><i class="dot done"></i> 먹음</span><span><i class="dot first"></i> 처음 먹는 음식</span><span>📱 아이폰에서는 가로로 밀어서 주간 전체 확인</span></div></section>
+ <div class="side"><section class="panel"><h2>이번 달 처음 먹는 음식</h2><div class="food-cloud">${[...first].map(x=>`<span class="food">${emoji(x)} ${esc(x)} ★</span>`).join('')||'<div class="small">아직 계획/기록이 없어요.</div>'}</div></section><section class="panel"><h2>식단 사용법</h2><div class="notice">메인 캘린더에서 <b>앞으로 먹일 식단을 먼저 계획</b>해두고, 실제로 먹인 뒤 각 끼니의 ○ 버튼을 눌러 완료 처리하세요.<br><br>베이스와 토핑 모두 저장되고, 처음 먹는 음식은 자동으로 노란색으로 표시돼요.</div></section></div>`;
+}
+function cells(v,first){const y=v.getFullYear(),m=v.getMonth(),start=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),prev=new Date(y,m,0).getDate(),out=[];for(let i=0;i<42;i++){const n=i-start+1,date=n<=0?new Date(y,m-1,prev+n):n>days?new Date(y,m+1,n-days):new Date(y,m,n),k=fmt(date),cur=date.getMonth()===m,ms=meals(k);out.push(`<div class="day ${cur?'':'muted'} ${k===todayKey()?'today':''} ${k===selectedKey?'selected':''}" onclick="selectDay('${k}')"><div class="date-row"><div><div class="date">${date.getDate()}</div><div class="dplus">D+${dplus(k)}</div></div>${ms.length?`<span class="meal-count">${ms.length}끼</span>`:''}</div><div class="meals">${ms.map((x,i)=>mealHTML(x,i,k,first)).join('')}</div><button class="add" onclick="event.stopPropagation();openAdd('${k}')">＋ ${ms.length?'끼니 추가':'식단 계획'}</button></div>`)}return out}
+function mealHTML(m,i,k,first){const done=m.status==='done';return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})"><button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button><div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div><div class="base-line">🥣 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div><div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`}
+function selectDay(k){selectedKey=k;openDay(k)}
+function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
+function goToday(){view=new Date();view.setDate(1);selectedKey=todayKey();render()}
+function toggleDone(k,i){const a=meals(k).slice();a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render()}
+function openAdd(k=todayKey(),idx=-1){
+ selectedKey=k;const a=meals(k), m=idx>=0?a[idx]:{bases:[],toppings:[],time:'',memo:'',status:'plan'};window.fb=[...(m.bases||[])];window.ft=[...(m.toppings||[])];
+ openSheet(`<div class="sheet-head"><div><h2>${idx>=0?`${idx+1}끼 식단 수정`:`${a.length+1}끼 식단 추가`}</h2><div class="small">${k} · D+${dplus(k)}</div></div><button class="close" onclick="closeSheet()">×</button></div>
+ <div class="section"><div class="label">상태</div><div class="plan-toggle"><button class="toggle ${m.status==='plan'?'on':''}" onclick="setStatus(this,'plan')">◯ 먹일 예정</button><button class="toggle ${m.status==='done'?'on':''}" onclick="setStatus(this,'done')">✓ 먹었어요</button></div></div>
+ <div class="section"><div class="label">베이스 · 여러 개 선택 가능</div><div class="opts">${state.bases.map(x=>`<button class="opt ${window.fb.includes(x)?'on':''}" onclick="toggleFood(this,'b','${esc(x)}')">🥣 ${esc(x)}</button>`).join('')}</div></div>
+ <div class="section"><div class="label">토핑 · 여러 개 선택 가능</div><div class="opts">${state.toppings.map(x=>`<button class="opt ${window.ft.includes(x)?'on':''}" onclick="toggleFood(this,'t','${esc(x)}')">${emoji(x)} ${esc(x)}</button>`).join('')}</div></div>
+ <div class="section"><div class="label">시간</div><input id="mealTime" class="input" value="${esc(m.time||'')}" placeholder="예: 오전 10:30"></div>
+ <div class="section"><div class="label">메모</div><textarea id="memo" class="input" rows="3" placeholder="미리 먹일 식단이나 실제 반응을 기록">${esc(m.memo||'')}</textarea></div>
+ <button class="save" onclick="saveMeal('${k}',${idx})">저장하기</button>${idx>=0?`<button type="button" class="save danger" onclick="deleteMeal('${k}',${idx})">이 끼니 삭제</button>`:''}`);
+ window.fstatus=m.status||'plan';
+}
+function setStatus(el,v){window.fstatus=v;el.parentElement.querySelectorAll('.toggle').forEach(x=>x.classList.remove('on'));el.classList.add('on')}
+function toggleFood(el,type,x){const a=type==='b'?window.fb:window.ft,i=a.indexOf(x);if(i>=0){a.splice(i,1);el.classList.remove('on')}else{a.push(x);el.classList.add('on')}}
+function saveMeal(k,idx){const a=meals(k).slice(),m={bases:window.fb,toppings:window.ft,time:document.getElementById('mealTime').value,memo:document.getElementById('memo').value,status:window.fstatus||'plan'};if(idx>=0)a[idx]=m;else a.push(m);setMeals(k,a);closeSheet();render()}
+function deleteMeal(k,idx){
+  const key=`${state.activeBaby}_${k}`;
+  const current=Array.isArray(state.plans[key]) ? state.plans[key].slice() : [];
+  if(idx<0 || idx>=current.length){ alert('삭제할 끼니를 찾지 못했어요.'); return; }
+  current.splice(idx,1);
+  if(current.length===0) delete state.plans[key];
+  else state.plans[key]=current;
+  save();
+  selectedKey=k;
+  closeSheet();
+  render();
+}
+function openDay(k){const a=meals(k),first=firstFoods();openSheet(`<div class="sheet-head"><div><h2>${k} · D+${dplus(k)}</h2><div class="small">${a.length?'등록된 끼니 '+a.length+'개':'아직 식단이 없어요'}</div></div><button class="close" onclick="closeSheet()">×</button></div>${a.map((m,i)=>`<div class="row"><span><b>${i+1}끼</b> · ${m.status==='done'?'먹음':'먹을 예정'}<br><span class="small">🥣 ${(m.bases||[]).join(' + ')||'베이스 미정'} · ${(m.toppings||[]).join(' · ')||'토핑 미정'}</span></span><button class="icon" onclick="openAdd('${k}',${i})">수정</button></div>`).join('')}<button class="save" style="margin-top:10px" onclick="openAdd('${k}')">＋ 이 날짜에 끼니 추가</button>`)}
+function openSheet(x){document.getElementById('sheet').innerHTML=x;document.getElementById('overlay').classList.add('show')}
+function closeSheet(){document.getElementById('overlay').classList.remove('show')}
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target.id==='overlay')closeSheet()})
+function openBabies(){
+ openSheet(`<div class="sheet-head"><h2>👶 아기 선택</h2><button class="close" onclick="closeSheet()">×</button></div>
+ ${state.babies.map(b=>`<div class="row"><button type="button" style="border:0;background:none;text-align:left;flex:1;padding:0" onclick="switchBaby('${b.id}')"><b>${esc(b.name)}</b><br><span class="small">${b.birth}</span></button><span>${b.id===state.activeBaby?'✓':''}</span><button type="button" class="icon" onclick="editBaby('${b.id}')">✏️</button></div>`).join('')}
+ <div class="section"><div class="label">아기 추가</div><input id="bn" class="input" placeholder="이름"><input id="bb" type="date" class="input" style="margin-top:7px"><button type="button" class="save" style="margin-top:8px" onclick="addBaby()">추가</button></div>`)
+}
+function editBaby(id){
+ const b=state.babies.find(x=>x.id===id); if(!b)return;
+ openSheet(`<div class="sheet-head"><h2>👶 아기 정보 수정</h2><button class="close" onclick="openBabies()">×</button></div>
+ <div class="section"><div class="label">아기 이름</div><input id="editName" class="input" value="${esc(b.name)}"></div>
+ <div class="section"><div class="label">생년월일</div><input id="editBirth" type="date" class="input" value="${esc(b.birth||'')}"></div>
+ <button type="button" class="save" onclick="saveBaby('${id}')">저장하기</button>
+ <button type="button" class="save secondary" onclick="openBabies()">취소</button>`)
+}
+function saveBaby(id){
+ const b=state.babies.find(x=>x.id===id); if(!b)return;
+ const name=document.getElementById('editName').value.trim();
+ const birth=document.getElementById('editBirth').value;
+ if(!name || !birth){alert('아기 이름과 생년월일을 모두 입력해주세요.');return}
+ b.name=name; b.birth=birth;
+ state.activeBaby=id; save(); closeSheet(); render();
+}
+function switchBaby(id){state.activeBaby=id;save();closeSheet();render()}
+function addBaby(){const n=document.getElementById('bn').value.trim(),b=document.getElementById('bb').value;if(!n||!b)return alert('이름과 생년월일을 입력해주세요.');state.babies.push({id:'b'+Date.now(),name:n,birth:b});state.activeBaby=state.babies.at(-1).id;save();closeSheet();render()}
+function openSettings(){openSheet(`<div class="sheet-head"><div><h2>⚙️ 설정</h2><div class="small">${esc(authUser?.email||'')}</div></div><button class="close" onclick="closeSheet()">×</button></div><div class="section"><div class="label">아기 정보</div><button type="button" class="save" onclick="openBabies()">이름 / 생년월일 수정</button></div><div class="section"><div class="label">식재료 관리</div><button type="button" class="save" onclick="openIngredients()">베이스 / 토핑 관리</button></div><div class="section"><div class="label">데이터</div><button type="button" class="save" onclick="backup()">백업 파일 저장</button><button type="button" class="save secondary" onclick="restore()">백업 불러오기</button></div><div class="section"><button type="button" class="save danger" onclick="logout()">로그아웃</button></div>`)}
+function openIngredients(){openSheet(`<div class="sheet-head"><h2>🥕 식재료 관리</h2><button class="close" onclick="closeSheet()">×</button></div><div class="section"><div class="label">베이스</div><div class="list">${state.bases.map((x,i)=>`<div class="row"><b>🥣 ${esc(x)}</b><button type="button" class="icon" onclick="removeIng('bases',${i})">삭제</button></div>`).join('')}</div><div style="display:flex;gap:7px;margin-top:8px"><input id="nb" class="input" placeholder="베이스 추가"><button class="icon" onclick="addIng('bases')">＋</button></div></div><div class="section"><div class="label">토핑</div><div class="list">${state.toppings.map((x,i)=>`<div class="row"><b>${emoji(x)} ${esc(x)}</b><button type="button" class="icon" onclick="removeIng('toppings',${i})">삭제</button></div>`).join('')}</div><div style="display:flex;gap:7px;margin-top:8px"><input id="nt" class="input" placeholder="토핑 추가"><button class="icon" onclick="addIng('toppings')">＋</button></div></div>`)}
+function addIng(t){const id=t==='bases'?'nb':'nt',v=document.getElementById(id).value.trim();if(v&&!state[t].includes(v)){state[t].push(v);save();openIngredients();render()}}
+function removeIng(t,i){
+  if(i<0 || i>=state[t].length){alert('삭제할 식재료를 찾지 못했어요.');return}
+  state[t].splice(i,1);
+  save();
+  openIngredients();
+  render();
+}
+function backup(){const b=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`이유식-식단백업-${todayKey()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(u),500)}
+function restore(){const input=document.createElement('input');input.type='file';input.accept='.json';input.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{state=JSON.parse(r.result);save();closeSheet();render();alert('복원했어요.')}catch(x){alert('올바른 백업 파일이 아니에요.')}};r.readAsText(f)};input.click()}
+async function signIn(email,password){
+  if(!supabaseClient) return authMessage('Supabase 연결 설정을 먼저 완료해주세요.','error');
+  const {error}=await supabaseClient.auth.signInWithPassword({email,password});
+  if(error) authMessage(error.message,'error');
+}
+async function signUp(email,password,babyName,birth){
+  if(!supabaseClient) return authMessage('Supabase 연결 설정을 먼저 완료해주세요.','error');
+  if(!email||!password||!babyName||!birth) return authMessage('이메일, 비밀번호, 아기 이름, 생년월일을 모두 입력해주세요.','error');
+  if(password.length<6) return authMessage('비밀번호는 6자 이상으로 입력해주세요.','error');
+  localStorage.setItem('yummy_pending_signup',JSON.stringify({babyName,birth}));
+  const opts={data:{baby_name:babyName,birth_date:birth}};
+  const redirect=getRedirectUrl(); if(redirect) opts.emailRedirectTo=redirect;
+  const {data,error}=await supabaseClient.auth.signUp({email,password,options:opts});
+  if(error){authMessage(error.message,'error');return}
+  if(data.session){await onSignedIn(data.session.user)}
+  else authMessage('가입 완료! 이메일 받은편지함에서 인증 링크를 눌러주세요. 인증 후 이 페이지로 돌아와 로그인하면 돼요.','success');
+}
+async function resetPassword(email){
+  if(!email) return authMessage('비밀번호를 재설정할 이메일을 입력해주세요.','error');
+  const redirect=getRedirectUrl();
+  const {error}=await supabaseClient.auth.resetPasswordForEmail(email,redirect?{redirectTo:redirect}:{});
+  if(error) authMessage(error.message,'error'); else authMessage('비밀번호 재설정 메일을 보냈어요.','success');
+}
+async function logout(){await supabaseClient.auth.signOut();closeSheet()}
+function authMessage(msg,type='info'){const el=document.getElementById('authMsg');if(el){el.className='auth-msg '+(type==='error'?'auth-error':type==='success'?'auth-success':'');el.textContent=msg;el.hidden=false}}
+function authTab(mode){document.getElementById('authMode').value=mode;document.querySelectorAll('.auth-tab').forEach(x=>x.classList.toggle('on',x.dataset.mode===mode));const signup=mode==='signup';document.getElementById('signupFields').hidden=!signup;document.getElementById('authSubmit').textContent=signup?'회원가입':'로그인';document.getElementById('forgotBtn').hidden=signup;document.getElementById('authMsg').hidden=true}
+function renderAuth(){
+  const c=getConfig();
+  document.getElementById('app').innerHTML=`<main class="auth-screen"><section class="auth-card">
+  <div class="auth-logo">👶</div><div class="auth-title">냠냠 식단</div><div class="auth-sub">냠냠쩝쩝 맛있게 먹어보자 🥣</div>
+  ${isConfigured()?`<div class="auth-tabs"><button type="button" class="auth-tab on" data-mode="signin" onclick="authTab('signin')">로그인</button><button type="button" class="auth-tab" data-mode="signup" onclick="authTab('signup')">회원가입</button></div>
+  <input id="authMode" type="hidden" value="signin"><div id="authMsg" class="auth-msg" hidden></div>
+  <form class="auth-form" onsubmit="event.preventDefault();submitAuth()"><input id="authEmail" class="input" type="email" autocomplete="email" placeholder="이메일" required><input id="authPassword" class="input" type="password" autocomplete="current-password" placeholder="비밀번호" required>
+  <div id="signupFields" hidden><input id="authBabyName" class="input" style="margin-top:0" placeholder="아기 이름"><input id="authBirth" class="input" style="margin-top:9px" type="date"></div>
+  <div class="auth-actions"><button id="authSubmit" class="save" type="submit">로그인</button><button id="forgotBtn" type="button" class="auth-link" onclick="resetPassword(document.getElementById('authEmail').value)">비밀번호를 잊으셨나요?</button></div></form>`:
+  `<div class="auth-msg">처음 한 번만 Supabase 연결 정보를 넣어주세요. Publishable key는 브라우저에서 사용하는 공개 키입니다. <b>Secret key는 넣으면 안 돼요.</b></div><form class="auth-form" onsubmit="event.preventDefault();saveConfigFromForm()"><input id="cfgUrl" class="input" value="${esc(c.url)}" placeholder="Project URL"><input id="cfgKey" class="input" type="password" placeholder="Publishable key (sb_publishable_...)"><button class="save" type="submit">Supabase 연결하기</button></form><div class="config-note">연결 정보는 이 기기의 브라우저에만 저장됩니다.</div>`}
+  </section></main>`;
+}
+async function submitAuth(){
+ const mode=document.getElementById('authMode').value,email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value;
+ if(mode==='signup') return signUp(email,password,document.getElementById('authBabyName').value.trim(),document.getElementById('authBirth').value);
+ return signIn(email,password);
+}
+function saveConfigFromForm(){const url=document.getElementById('cfgUrl').value.trim().replace(/\/$/,''),key=document.getElementById('cfgKey').value.trim();if(!/^https:\/\//.test(url)||!key.startsWith('sb_publishable_')){alert('Project URL과 sb_publishable_로 시작하는 Publishable key를 확인해주세요.');return}localStorage.setItem(CONFIG_KEY,JSON.stringify({url,key}));location.reload()}
+
+async function loadCloudState(){
+  const [bRes,fRes,mRes,mfRes]=await Promise.all([
+    supabaseClient.from('babies').select('*').order('created_at'),
+    supabaseClient.from('foods').select('*').order('created_at'),
+    supabaseClient.from('meals').select('*').order('meal_date').order('meal_number'),
+    supabaseClient.from('meal_foods').select('meal_id,food_id')
+  ]);
+  for(const r of [bRes,fRes,mRes,mfRes]) if(r.error) throw r.error;
+  const babies=bRes.data||[], foods=fRes.data||[], mealsCloud=mRes.data||[], links=mfRes.data||[];
+  if(!babies.length && !mealsCloud.length && !foods.length){
+    await migrateLocalState();
+    return;
+  }
+  const foodMap={};foods.forEach(f=>{foodMap[f.id]=f});
+  const mealLinks={};links.forEach(l=>(mealLinks[l.meal_id]??=[]).push(foodMap[l.food_id]));
+  const plans={};
+  mealsCloud.forEach(m=>{const babyId=m.baby_id,key=`${babyId}_${m.meal_date}`;const linked=mealLinks[m.id]||[];const meal={id:m.id,bases:linked.filter(f=>f.type==='base').map(f=>f.name),toppings:linked.filter(f=>f.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};(plans[key]??=[]).push(meal)});
+  babies.forEach(b=>{plans[`${b.id}_unused`]=plans[`${b.id}_unused`]||[]});
+  const pending=JSON.parse(localStorage.getItem('yummy_pending_signup')||'null');
+  const active=state.babies.find(x=>babies.some(b=>b.id===x.id))?.id || babies[0]?.id;
+  state={babies:babies.map(b=>({id:b.id,name:b.name,birth:b.birth_date})),activeBaby:active,bases:foods.filter(f=>f.type==='base').map(f=>f.name),toppings:foods.filter(f=>f.type==='topping').map(f=>f.name),plans};
+  Object.keys(state.plans).filter(k=>k.endsWith('_unused')).forEach(k=>delete state.plans[k]);
+  if(pending){localStorage.removeItem('yummy_pending_signup');if(babies.length===0) await createBabyFromPending(pending)}
+  save();
+}
+async function createBabyFromPending(p){const {data,error}=await supabaseClient.from('babies').insert({user_id:authUser.id,name:p.babyName,birth_date:p.birth}).select().single();if(error)throw error;state.babies=[{id:data.id,name:data.name,birth:data.birth_date}];state.activeBaby=data.id;save()}
+function hasMeaningfulLocalData(){const raw=localStorage.getItem(KEY);if(!raw)return false;try{const x=JSON.parse(raw);return !!(x.plans&&Object.keys(x.plans).length) || (x.babies&&x.babies.length&&x.babies.some(b=>b.name!=='우리 아기'||b.birth!=='2026-04-01'))}catch(e){return false}}
+async function migrateLocalState(){
+ const local=state; const pending=JSON.parse(localStorage.getItem('yummy_pending_signup')||'null');
+ const babyRows=[]; const babyIdMap={};
+ for(const b of local.babies||[]){const name=(pending?.babyName && b.id===local.activeBaby)?pending.babyName:b.name;const birth=(pending?.birth && b.id===local.activeBaby)?pending.birth:b.birth;const {data,error}=await supabaseClient.from('babies').insert({user_id:authUser.id,name,birth_date:birth}).select().single();if(error)throw error;babyIdMap[b.id]=data.id;babyRows.push({id:data.id,name:data.name,birth:data.birth_date})}
+ const foodRows=[];for(const name of [...new Set(local.bases||[])])foodRows.push({user_id:authUser.id,name,type:'base'});for(const name of [...new Set(local.toppings||[])])foodRows.push({user_id:authUser.id,name,type:'topping'});
+ let foodData=[];if(foodRows.length){const {data,error}=await supabaseClient.from('foods').upsert(foodRows,{onConflict:'user_id,type,name'}).select();if(error)throw error;foodData=data||[]}
+ const foodId={};foodData.forEach(f=>foodId[`${f.type}|${f.name}`]=f.id);
+ const mealRows=[];const localMealEntries=[];for(const key of Object.keys(local.plans||{})){const pos=key.indexOf('_');if(pos<0)continue;const localBaby=key.slice(0,pos),date=key.slice(pos+1),babyId=babyIdMap[localBaby];if(!babyId)continue;(local.plans[key]||[]).forEach((m,i)=>{localMealEntries.push({localBaby,date,index:i,m});mealRows.push({baby_id:babyId,meal_date:date,meal_number:i+1,status:m.status||'plan',meal_time:m.time||null,memo:m.memo||null})})}
+ let mealData=[];if(mealRows.length){const {data,error}=await supabaseClient.from('meals').upsert(mealRows,{onConflict:'baby_id,meal_date,meal_number'}).select();if(error)throw error;mealData=data||[]}
+ const byMeal={};mealData.forEach(m=>byMeal[`${m.baby_id}|${m.meal_date}|${m.meal_number}`]=m.id);
+ const linkRows=[];localMealEntries.forEach(e=>{const mid=byMeal[`${babyIdMap[e.localBaby]}|${e.date}|${e.index+1}`];if(!mid)return;for(const n of e.m.bases||[])if(foodId[`base|${n}`])linkRows.push({meal_id:mid,food_id:foodId[`base|${n}`]});for(const n of e.m.toppings||[])if(foodId[`topping|${n}`])linkRows.push({meal_id:mid,food_id:foodId[`topping|${n}`]})});if(linkRows.length){const {error}=await supabaseClient.from('meal_foods').upsert(linkRows,{onConflict:'meal_id,food_id'});if(error)throw error}
+ localStorage.removeItem('yummy_pending_signup');
+ state={babies:babyRows,activeBaby:babyIdMap[local.activeBaby]||babyRows[0]?.id,bases:foodData.filter(f=>f.type==='base').map(f=>f.name),toppings:foodData.filter(f=>f.type==='topping').map(f=>f.name),plans:{}};
+ for(const e of localMealEntries){const nb=babyIdMap[e.localBaby];if(!nb)continue;const key=`${nb}_${e.date}`;const mid=byMeal[`${nb}|${e.date}|${e.index+1}`];(state.plans[key]??=[]).push({...e.m,id:mid})}
+ save();
+}
+async function syncStateToCloud(){
+ if(!cloudReady||!authUser||loadingCloud)return;
+ try{
+  const {data:cloudBabies,error:be}=await supabaseClient.from('babies').select('*');if(be)throw be;
+  const localBabyIds=new Set((state.babies||[]).map(b=>b.id));
+  const validBabyIds=new Set();
+  for(let i=0;i<(state.babies||[]).length;i++){
+    const b=state.babies[i];
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(b.id)){
+      const oldId=b.id;
+      const {data,error}=await supabaseClient.from('babies').insert({user_id:authUser.id,name:b.name,birth_date:b.birth}).select().single();if(error)throw error;b.id=data.id;state.babies[i]=b;
+      if(state.activeBaby===oldId) state.activeBaby=data.id;
+      const oldPrefix=`${oldId}_`; const newPrefix=`${data.id}_`;
+      Object.keys(state.plans||{}).filter(k=>k.startsWith(oldPrefix)).forEach(k=>{state.plans[newPrefix+k.slice(oldPrefix.length)]=state.plans[k];delete state.plans[k]});
+    } else {const {error}=await supabaseClient.from('babies').update({name:b.name,birth_date:b.birth}).eq('id',b.id);if(error)throw error}
+    validBabyIds.add(b.id);
+  }
+  const staleBabies=(cloudBabies||[]).filter(b=>!validBabyIds.has(b.id)).map(b=>b.id);if(staleBabies.length){const {error}=await supabaseClient.from('babies').delete().in('id',staleBabies);if(error)throw error}
+  const foodRows=[...new Set(state.bases||[])].map(name=>({user_id:authUser.id,name,type:'base'})).concat([...new Set(state.toppings||[])].map(name=>({user_id:authUser.id,name,type:'topping'})));
+  const {data:foodData,error:fe}=await supabaseClient.from('foods').upsert(foodRows,{onConflict:'user_id,type,name'}).select();if(fe)throw fe;
+  const wantedFoodKeys=new Set(foodRows.map(f=>`${f.type}|${f.name}`));
+  const {data:allFoods,error:afe}=await supabaseClient.from('foods').select('*');if(afe)throw afe;
+  const staleFoods=(allFoods||[]).filter(f=>!wantedFoodKeys.has(`${f.type}|${f.name}`)).map(f=>f.id);if(staleFoods.length){const {error}=await supabaseClient.from('foods').delete().in('id',staleFoods);if(error)throw error}
+  const foodId={};(foodData||[]).forEach(f=>foodId[`${f.type}|${f.name}`]=f.id);
+  const localMealRows=[];for(const key of Object.keys(state.plans||{})){const pos=key.indexOf('_');if(pos<0)continue;const babyId=key.slice(0,pos),date=key.slice(pos+1);if(!validBabyIds.has(babyId))continue;(state.plans[key]||[]).forEach((m,i)=>localMealRows.push({id:m.id||undefined,baby_id:babyId,meal_date:date,meal_number:i+1,status:m.status||'plan',meal_time:m.time||null,memo:m.memo||null}));}
+  const upRows=localMealRows.map(x=>{const y={baby_id:x.baby_id,meal_date:x.meal_date,meal_number:x.meal_number,status:x.status,meal_time:x.meal_time,memo:x.memo};if(x.id)y.id=x.id;return y});
+  let savedMeals=[];if(upRows.length){const {data,error}=await supabaseClient.from('meals').upsert(upRows,{onConflict:'baby_id,meal_date,meal_number'}).select();if(error)throw error;savedMeals=data||[]}
+  const {data:allMeals,error:ame}=await supabaseClient.from('meals').select('id,baby_id,meal_date,meal_number');if(ame)throw ame;
+  const wantedMealKeys=new Set(upRows.map(m=>`${m.baby_id}|${m.meal_date}|${m.meal_number}`));
+  const staleMeals=(allMeals||[]).filter(m=>!wantedMealKeys.has(`${m.baby_id}|${m.meal_date}|${m.meal_number}`)).map(m=>m.id);if(staleMeals.length){const {error}=await supabaseClient.from('meals').delete().in('id',staleMeals);if(error)throw error}
+  const {data:currentMeals,error:cme}=await supabaseClient.from('meals').select('id,baby_id,meal_date,meal_number');if(cme)throw cme;
+  const mealIdMap={};(currentMeals||[]).forEach(m=>mealIdMap[`${m.baby_id}|${m.meal_date}|${m.meal_number}`]=m.id);
+  const currentMealIds=(currentMeals||[]).map(m=>m.id);if(currentMealIds.length){const {error}=await supabaseClient.from('meal_foods').delete().in('meal_id',currentMealIds);if(error)throw error}
+  const links=[];for(const key of Object.keys(state.plans||{})){const pos=key.indexOf('_');if(pos<0)continue;const babyId=key.slice(0,pos),date=key.slice(pos+1);(state.plans[key]||[]).forEach((m,i)=>{const mid=mealIdMap[`${babyId}|${date}|${i+1}`];if(!mid)return;(m.bases||[]).forEach(n=>{const fid=foodId[`base|${n}`];if(fid)links.push({meal_id:mid,food_id:fid})});(m.toppings||[]).forEach(n=>{const fid=foodId[`topping|${n}`];if(fid)links.push({meal_id:mid,food_id:fid})})})}
+  if(links.length){const {error}=await supabaseClient.from('meal_foods').insert(links);if(error)throw error}
+  // Add/refresh meal ids in local state.
+  for(const key of Object.keys(state.plans||{})){const pos=key.indexOf('_');if(pos<0)continue;const babyId=key.slice(0,pos),date=key.slice(pos+1);(state.plans[key]||[]).forEach((m,i)=>{m.id=mealIdMap[`${babyId}|${date}|${i+1}`]})}
+  localStorage.setItem(KEY,JSON.stringify(state));
+ }catch(e){console.error(e);authMessage(e.message||'클라우드 저장에 실패했어요.','error')}
+}
+function queueCloudSync(){clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(syncStateToCloud,500)}
+async function onSignedIn(user){authUser=user;loadingCloud=true;cloudReady=false;document.getElementById('app').innerHTML='<main class="auth-screen"><section class="auth-card"><div class="auth-logo">🥣</div><div class="auth-title">불러오는 중...</div><div class="auth-sub">식단을 안전하게 가져오고 있어요.</div></section></main>';
+ try{await loadCloudState();cloudReady=true;loadingCloud=false;render();queueCloudSync()}catch(e){loadingCloud=false;renderAuth();authMessage(e.message||'데이터를 불러오지 못했어요.','error')}}
+async function initApp(){
+ if(!isConfigured()){renderAuth();return}
+ initClient();
+ supabaseClient.auth.onAuthStateChange(async (event,session)=>{if(session?.user && (event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='TOKEN_REFRESHED')){if(!authUser||authUser.id!==session.user.id)await onSignedIn(session.user)}else if(event==='SIGNED_OUT'){authUser=null;cloudReady=false;renderAuth()}});
+ const {data}=await supabaseClient.auth.getSession();if(data.session)await onSignedIn(data.session.user);else renderAuth();
+}
+initApp();
+</script>
+</body>
+</html>
