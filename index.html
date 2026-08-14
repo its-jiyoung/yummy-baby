@@ -137,13 +137,16 @@ function cells(v){
   }
   return out;
 }
-function mealHTML(m,i,k,first){
+function mealHTML(m,i,k,eatenBefore){
   const done=m.status==='done';
+  // 처음 먹는 음식은 '아직 먹기 전'인 경우에만 ★ 표시한다.
+  // 과거에 먹은 기록이 있으면 표시하지 않고, 오늘 먹었어요를 누른 직후에도 사라진다.
+  const isFirst=(x)=>!done && !eatenBefore.has(x);
   return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})">
 <button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button>
 <div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div>
 <div class="base-line">🍚 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div>
-<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
+<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${isFirst(x)?'first':''}">${emoji(x)} ${esc(x)}${isFirst(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
 }
 function selectDay(k){selectedKey=k;openDay(k)}
 function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
@@ -271,7 +274,7 @@ function makeStateFromCloud(babies,foods,mealsCloud,links){
   const plans={};
   mealsCloud.forEach(m=>{
     const key=`${m.baby_id}_${m.meal_date}`,linked=mealLinks[m.id]||[];
-    const meal={id:m.id,bases:linked.filter(f=>f?.type==='base').map(f=>f.name),toppings:linked.filter(f=>f?.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};
+    const meal={id:m.id,meal_number:m.meal_number,bases:linked.filter(f=>f?.type==='base').map(f=>f.name),toppings:linked.filter(f=>f?.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};
     (plans[key]??=[]).push(meal);
   });
   Object.keys(plans).forEach(k=>plans[k].sort((a,b)=>(a.meal_number||0)-(b.meal_number||0)));
@@ -321,7 +324,14 @@ async function syncFoodsToCloud(){
     if(rows.length){const {error}=await supabaseClient.from('foods').upsert(rows,{onConflict:'user_id,type,name'});if(error)throw error}
   }catch(e){showCloudError(e)}
 }
-async function syncDayToCloud(date){
+const daySyncChains={};
+function syncDayToCloud(date){
+  const previous=daySyncChains[date]||Promise.resolve();
+  const next=previous.catch(()=>{}).then(()=>syncDayToCloudNow(date));
+  daySyncChains[date]=next.finally(()=>{if(daySyncChains[date]===next)delete daySyncChains[date]});
+  return next;
+}
+async function syncDayToCloudNow(date){
   if(!cloudReady||!authUser||loadingCloud)return;
   try{
     await syncFoodsToCloud();
