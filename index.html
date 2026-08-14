@@ -67,27 +67,38 @@ function todayKey(){return fmt(new Date())}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0];return b?.birth?Math.floor((parse(k)-parse(b.birth))/86400000)+1:''}
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
-function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];localStorage.setItem(KEY,JSON.stringify(state))}
+function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
 
-function eatenFoodsBefore(date, mealIndex=-1){
-  const eaten=new Set();
-  Object.keys(state.plans)
-    .filter(k=>k.startsWith(state.activeBaby+'_'))
-    .map(k=>k.slice(state.activeBaby.length+1))
-    .filter(d=>d<date)
-    .sort()
-    .forEach(d=>{
-      (state.plans[`${state.activeBaby}_${d}`]||[]).filter(m=>m.status==='done').forEach(m=>{
-        [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)eaten.add(x)})
+function firstFoods(beforeDate, mealIndex=-1){
+  const seen=new Set();
+  const prefix=`${state.activeBaby}_`;
+  const dates=Object.keys(state.plans)
+    .filter(k=>k.startsWith(prefix))
+    .map(k=>k.slice(prefix.length))
+    .filter(date=>date<beforeDate)
+    .sort();
+
+  dates.forEach(date=>{
+    (state.plans[`${prefix}${date}`]||[])
+      .filter(m=>m.status==='done')
+      .forEach(m=>{
+        [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)})
       });
-    });
+  });
+
+  // 같은 날짜의 앞선 끼니에서 이미 먹은 음식도 반영
   if(mealIndex>=0){
-    (state.plans[`${state.activeBaby}_${date}`]||[]).slice(0,mealIndex).filter(m=>m.status==='done').forEach(m=>{
-      [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)eaten.add(x)});
-    });
+    (state.plans[`${prefix}${beforeDate}`]||[])
+      .slice(0, mealIndex + 1)
+      .filter(m=>m.status==='done')
+      .forEach(m=>{
+        [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)})
+      });
   }
-  return eaten;
+
+  return seen;
 }
+
 function monthlyFirstFoods(){
   const seenBefore=new Set(), introduced=new Set();
   const month=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
@@ -135,24 +146,23 @@ function cells(v){
     const k=fmt(date),cur=date.getMonth()===m,ms=meals(k);
     out.push(`<div class="day ${cur?'':'muted'} ${k===todayKey()?'today':''} ${k===selectedKey?'selected':''}" onclick="selectDay('${k}')">
 <div class="date-row"><div><div class="date">${date.getDate()}</div><div class="dplus">D+${dplus(k)}</div></div>${ms.length?`<span class="meal-count">${ms.length}끼</span>`:''}</div>
-<div class="meals">${ms.map((x,i)=>mealHTML(x,i,k)).join('')}</div>
+<div class="meals">${ms.map((x,i)=>mealHTML(x,i,k,firstFoods(k,i))).join('')}</div>
 <button class="add" onclick="event.stopPropagation();openAdd('${k}')">＋ ${ms.length?'끼니 추가':'식단 계획'}</button></div>`);
   }
   return out;
 }
-function mealHTML(m,i,k){
+function mealHTML(m,i,k,first){
   const done=m.status==='done';
-  const eatenBefore=eatenFoodsBefore(k,i);
   return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})">
 <button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button>
 <div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div>
 <div class="base-line">🍚 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div>
-<div class="toppings">${(m.toppings||[]).map(x=>{const isFirst=!done&&!eatenBefore.has(x);return `<span class="chip ${isFirst?'first':''}">${emoji(x)} ${esc(x)}${isFirst?' ★':''}</span>`}).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
+<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
 }
 function selectDay(k){selectedKey=k;openDay(k)}
 function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
 function goToday(){view=new Date();view.setDate(1);selectedKey=todayKey();render()}
-function toggleDone(k,i){const a=meals(k).slice();if(!a[i])return;a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render();queueSyncDay(k)}
+function toggleDone(k,i){const a=meals(k).slice();if(!a[i])return;a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render();queueDaySync(k)}
 function openAdd(k=todayKey(),idx=-1){
   selectedKey=k;const a=meals(k),m=idx>=0?a[idx]:{bases:[],toppings:[],time:'',memo:'',status:'plan'};
   window.fb=[...(m.bases||[])];window.ft=[...(m.toppings||[])];
@@ -170,14 +180,14 @@ function toggleFood(el,type,x){const a=type==='b'?window.fb:window.ft,i=a.indexO
 function saveMeal(k,idx){
   const a=meals(k).slice(),m={bases:[...window.fb],toppings:[...window.ft],time:document.getElementById('mealTime').value,memo:document.getElementById('memo').value,status:window.fstatus||'plan'};
   if(idx>=0)a[idx]={...a[idx],...m};else a.push(m);
-  setMeals(k,a);closeSheet();render();queueSyncDay(k);
+  setMeals(k,a);closeSheet();render();queueDaySync(k);
 }
 async function deleteMeal(k,idx){
   const a=meals(k).slice();if(idx<0||idx>=a.length)return;
   const removed=a[idx];a.splice(idx,1);setMeals(k,a);closeSheet();render();
   try{
     if(cloudReady&&removed.id){const {error}=await supabaseClient.from('meals').delete().eq('id',removed.id);if(error)throw error}
-    await queueSyncDay(k);
+    await queueDaySync(k);
   }catch(e){console.error(e);alert('삭제한 끼니를 서버에 반영하지 못했어요. 다시 시도해주세요.')}
 }
 function openDay(k){
@@ -275,7 +285,7 @@ function makeStateFromCloud(babies,foods,mealsCloud,links){
   const plans={};
   mealsCloud.forEach(m=>{
     const key=`${m.baby_id}_${m.meal_date}`,linked=mealLinks[m.id]||[];
-    const meal={id:m.id,meal_number:m.meal_number,bases:linked.filter(f=>f?.type==='base').map(f=>f.name),toppings:linked.filter(f=>f?.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};
+    const meal={id:m.id,bases:linked.filter(f=>f?.type==='base').map(f=>f.name),toppings:linked.filter(f=>f?.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};
     (plans[key]??=[]).push(meal);
   });
   Object.keys(plans).forEach(k=>plans[k].sort((a,b)=>(a.meal_number||0)-(b.meal_number||0)));
@@ -318,13 +328,6 @@ async function syncBabyToCloud(b){
   if(error)showCloudError(error);
 }
 function isUUID(x){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x||'')}
-const syncQueues=new Map();
-function queueSyncDay(date){
-  const prev=syncQueues.get(date)||Promise.resolve();
-  const next=prev.catch(()=>{}).then(()=>syncDayToCloud(date));
-  syncQueues.set(date,next.finally(()=>{if(syncQueues.get(date)===next)syncQueues.delete(date)}));
-  return next;
-}
 async function syncFoodsToCloud(){
   if(!cloudReady||!authUser)return;
   try{
@@ -371,7 +374,17 @@ async function syncDayToCloud(date){
   }catch(e){showCloudError(e)}
 }
 function showCloudError(e){console.error('Supabase:',e);const msg=e?.message||'클라우드 저장에 실패했어요.';const el=document.getElementById('authMsg');if(el)authMessage(msg,'error');else console.error(msg)}
-function queueCloudSync(){clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncAllDaysToCloud(),700)}
+function queueDaySync(date){
+  if(!cloudReady||!authUser||loadingCloud)return cloudSyncQueue;
+  cloudSyncQueue=cloudSyncQueue.then(()=>syncDayToCloud(date)).catch(e=>{console.error(e)});
+  return cloudSyncQueue;
+}
+function queueCloudSync(){
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer=setTimeout(()=>{
+    cloudSyncQueue=cloudSyncQueue.then(()=>syncAllDaysToCloud()).catch(e=>console.error(e));
+  },700);
+}
 async function syncAllDaysToCloud(){
   if(!cloudReady||!authUser||loadingCloud)return;
   const dates=[...new Set(Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)))];
