@@ -67,7 +67,7 @@ function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.b
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
 function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
 function firstFoods(){const seen=new Set(),first=new Set();Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).sort().forEach(k=>{(state.plans[k]||[]).forEach(m=>[...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x&&!seen.has(x)){seen.add(x);first.add(x)}}))});return first}
-function emoji(x){return ({'소고기':'🥩','닭고기':'🍗','연어':'🐟','당근':'🥕','애호박':'🥒','감자':'🥔','청경채':'🥬','브로콜리':'🥦','고구마':'🍠','양파':'🧅','두부':'⬜','가지':'🍆'})[x]||'🥕'}
+function emoji(x){return '🥗'}
 function render(){
  const baby=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0], first=firstFoods();
  document.getElementById('app').innerHTML=`<header class="top"><div class="baby"><div class="avatar">👶</div><div><div class="name">${esc(baby.name)}의 냠냠 식단</div><div class="sub">냠냠쩝쩝 맛있게 먹어보자 🥣</div></div></div><div style="display:flex;align-items:center;gap:8px"><div class="user-pill">${esc(authUser?.email||'')}</div><div class="today-badge">오늘 D+${dplus(todayKey())}</div></div><div class="actions"><button type="button" class="icon" onclick="openBabies()">👶</button><button type="button" class="icon" onclick="openSettings()">⚙️</button></div></header>
@@ -85,7 +85,7 @@ function openAdd(k=todayKey(),idx=-1){
  selectedKey=k;const a=meals(k), m=idx>=0?a[idx]:{bases:[],toppings:[],time:'',memo:'',status:'plan'};window.fb=[...(m.bases||[])];window.ft=[...(m.toppings||[])];
  openSheet(`<div class="sheet-head"><div><h2>${idx>=0?`${idx+1}끼 식단 수정`:`${a.length+1}끼 식단 추가`}</h2><div class="small">${k} · D+${dplus(k)}</div></div><button class="close" onclick="closeSheet()">×</button></div>
  <div class="section"><div class="label">상태</div><div class="plan-toggle"><button class="toggle ${m.status==='plan'?'on':''}" onclick="setStatus(this,'plan')">◯ 먹일 예정</button><button class="toggle ${m.status==='done'?'on':''}" onclick="setStatus(this,'done')">✓ 먹었어요</button></div></div>
- <div class="section"><div class="label">베이스 · 여러 개 선택 가능</div><div class="opts">${state.bases.map(x=>`<button class="opt ${window.fb.includes(x)?'on':''}" onclick="toggleFood(this,'b','${esc(x)}')">🥣 ${esc(x)}</button>`).join('')}</div></div>
+ <div class="section"><div class="label">베이스 · 여러 개 선택 가능</div><div class="opts">${state.bases.map(x=>`<button class="opt ${window.fb.includes(x)?'on':''}" onclick="toggleFood(this,'b','${esc(x)}')">🍚 ${esc(x)}</button>`).join('')}</div></div>
  <div class="section"><div class="label">토핑 · 여러 개 선택 가능</div><div class="opts">${state.toppings.map(x=>`<button class="opt ${window.ft.includes(x)?'on':''}" onclick="toggleFood(this,'t','${esc(x)}')">${emoji(x)} ${esc(x)}</button>`).join('')}</div></div>
  <div class="section"><div class="label">시간</div><input id="mealTime" class="input" value="${esc(m.time||'')}" placeholder="예: 오전 10:30"></div>
  <div class="section"><div class="label">메모</div><textarea id="memo" class="input" rows="3" placeholder="미리 먹일 식단이나 실제 반응을 기록">${esc(m.memo||'')}</textarea></div>
