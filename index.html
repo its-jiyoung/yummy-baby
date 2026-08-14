@@ -50,7 +50,7 @@ const CONFIG_KEY='yummy_supabase_config_v1';
 const DEFAULT_SUPABASE_URL='https://izweewdjfewtuddg0mhe.supabase.co';
 const DEFAULT_PUBLISHABLE_KEY='PASTE_YOUR_PUBLISHABLE_KEY_HERE';
 let cloudReady=false, cloudSyncTimer=null, loadingCloud=false, authUser=null;
-const defaultState={babies:[{id:'baby1',name:'우리 아기',birth:'2026-04-01'}],activeBaby:'baby1',bases:['쌀','오트밀','쌀 + 오트밀','기타'],toppings:['소고기','닭고기','연어','당근','애호박','감자','청경채','브로콜리','고구마','양파','두부','가지'],plans:{}};
+const defaultState={babies:[{id:'baby1',name:'우리 아기',birth:'2026-04-01'}],activeBaby:'baby1',bases:['쌀','오트밀','현미'],toppings:['애호박', '청경채', '양배추', '브로콜리', '감자', '고구마', '단호박', '소고기', '오이', '완두콩', '당근', '달걀', '닭고기', '양파', '두부', '시금치', '무', '토마토', '배추', '흰살생선'],plans:{}};
 function getConfig(){try{return JSON.parse(localStorage.getItem(CONFIG_KEY)||'null')||{url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}catch(e){return {url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}}
 let supabaseClient=null;
 function isConfigured(){const c=getConfig();return !!c.url && !!c.key && !c.key.includes('PASTE_YOUR')}
