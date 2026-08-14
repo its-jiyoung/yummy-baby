@@ -137,21 +137,18 @@ function cells(v){
   }
   return out;
 }
-function mealHTML(m,i,k,eatenBefore){
+function mealHTML(m,i,k,first){
   const done=m.status==='done';
-  // 처음 먹는 음식은 '아직 먹기 전'인 경우에만 ★ 표시한다.
-  // 과거에 먹은 기록이 있으면 표시하지 않고, 오늘 먹었어요를 누른 직후에도 사라진다.
-  const isFirst=(x)=>!done && !eatenBefore.has(x);
   return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})">
 <button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button>
 <div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div>
 <div class="base-line">🍚 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div>
-<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${isFirst(x)?'first':''}">${emoji(x)} ${esc(x)}${isFirst(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
+<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${!done&&first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${!done&&first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
 }
 function selectDay(k){selectedKey=k;openDay(k)}
 function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
 function goToday(){view=new Date();view.setDate(1);selectedKey=todayKey();render()}
-function toggleDone(k,i){const a=meals(k).slice();if(!a[i])return;a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render();syncDayToCloud(k)}
+function toggleDone(k,i){const a=meals(k).slice();if(!a[i])return;a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render();queueSyncDay(k)}
 function openAdd(k=todayKey(),idx=-1){
   selectedKey=k;const a=meals(k),m=idx>=0?a[idx]:{bases:[],toppings:[],time:'',memo:'',status:'plan'};
   window.fb=[...(m.bases||[])];window.ft=[...(m.toppings||[])];
@@ -169,14 +166,14 @@ function toggleFood(el,type,x){const a=type==='b'?window.fb:window.ft,i=a.indexO
 function saveMeal(k,idx){
   const a=meals(k).slice(),m={bases:[...window.fb],toppings:[...window.ft],time:document.getElementById('mealTime').value,memo:document.getElementById('memo').value,status:window.fstatus||'plan'};
   if(idx>=0)a[idx]={...a[idx],...m};else a.push(m);
-  setMeals(k,a);closeSheet();render();syncDayToCloud(k);
+  setMeals(k,a);closeSheet();render();queueSyncDay(k);
 }
 async function deleteMeal(k,idx){
   const a=meals(k).slice();if(idx<0||idx>=a.length)return;
   const removed=a[idx];a.splice(idx,1);setMeals(k,a);closeSheet();render();
   try{
     if(cloudReady&&removed.id){const {error}=await supabaseClient.from('meals').delete().eq('id',removed.id);if(error)throw error}
-    await syncDayToCloud(k);
+    await queueSyncDay(k);
   }catch(e){console.error(e);alert('삭제한 끼니를 서버에 반영하지 못했어요. 다시 시도해주세요.')}
 }
 function openDay(k){
@@ -317,6 +314,13 @@ async function syncBabyToCloud(b){
   if(error)showCloudError(error);
 }
 function isUUID(x){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x||'')}
+const syncQueues=new Map();
+function queueSyncDay(date){
+  const prev=syncQueues.get(date)||Promise.resolve();
+  const next=prev.catch(()=>{}).then(()=>syncDayToCloud(date));
+  syncQueues.set(date,next.finally(()=>{if(syncQueues.get(date)===next)syncQueues.delete(date)}));
+  return next;
+}
 async function syncFoodsToCloud(){
   if(!cloudReady||!authUser)return;
   try{
@@ -324,14 +328,7 @@ async function syncFoodsToCloud(){
     if(rows.length){const {error}=await supabaseClient.from('foods').upsert(rows,{onConflict:'user_id,type,name'});if(error)throw error}
   }catch(e){showCloudError(e)}
 }
-const daySyncChains={};
-function syncDayToCloud(date){
-  const previous=daySyncChains[date]||Promise.resolve();
-  const next=previous.catch(()=>{}).then(()=>syncDayToCloudNow(date));
-  daySyncChains[date]=next.finally(()=>{if(daySyncChains[date]===next)delete daySyncChains[date]});
-  return next;
-}
-async function syncDayToCloudNow(date){
+async function syncDayToCloud(date){
   if(!cloudReady||!authUser||loadingCloud)return;
   try{
     await syncFoodsToCloud();
