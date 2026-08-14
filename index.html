@@ -67,7 +67,7 @@ function todayKey(){return fmt(new Date())}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0];return b?.birth?Math.floor((parse(k)-parse(b.birth))/86400000)+1:''}
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
-function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
+function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];localStorage.setItem(KEY,JSON.stringify(state))}
 
 function foodsBeforeMeal(date, mealIndex){
   const seen=new Set();
@@ -82,20 +82,25 @@ function foodsBeforeMeal(date, mealIndex){
   }
   return seen;
 }
+function foodsBeforeMeal(date,mealIndex){
+  const seen=new Set();
+  const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d<=date).sort();
+  for(const d of dates){
+    const arr=state.plans[`${state.activeBaby}_${d}`]||[], limit=d===date?mealIndex:arr.length;
+    for(let i=0;i<limit;i++){const m=arr[i]||{};if(m.status!=='done')continue;for(const x of [...(m.bases||[]),...(m.toppings||[])])if(x)seen.add(x)}}
+  return seen;
+}
 function firstFoods(date,mealIndex){
-  const seen=foodsBeforeMeal(date,mealIndex), current=(state.plans[`${state.activeBaby}_${date}`]||[])[mealIndex], first=new Set();
-  if(!current)return first;
-  [...(current.bases||[]),...(current.toppings||[])].forEach(x=>{if(x&&!seen.has(x))first.add(x)});
+  const current=(state.plans[`${state.activeBaby}_${date}`]||[])[mealIndex], first=new Set();
+  if(!current||current.status!=='done')return first;
+  const seen=foodsBeforeMeal(date,mealIndex);
+  for(const x of [...(current.bases||[]),...(current.toppings||[])])if(x&&!seen.has(x))first.add(x);
   return first;
 }
 function monthlyFirstFoods(){
-  const introduced=new Set();
-  const month=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
+  const introduced=new Set(), month=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
   const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d.startsWith(month)).sort();
-  for(const date of dates){
-    const dayMeals=state.plans[`${state.activeBaby}_${date}`]||[];
-    for(let i=0;i<dayMeals.length;i++) if(dayMeals[i].status==='done') firstFoods(date,i).forEach(x=>introduced.add(x));
-  }
+  for(const date of dates){const arr=state.plans[`${state.activeBaby}_${date}`]||[];for(let i=0;i<arr.length;i++)firstFoods(date,i).forEach(x=>introduced.add(x))}
   return introduced;
 }
 function emoji(x){return '🥗'}
@@ -259,7 +264,7 @@ function makeStateFromCloud(babies,foods,mealsCloud,links){
   const plans={};
   mealsCloud.forEach(m=>{
     const key=`${m.baby_id}_${m.meal_date}`,linked=mealLinks[m.id]||[];
-    const meal={id:m.id,bases:linked.filter(f=>f?.type==='base').map(f=>f.name),toppings:linked.filter(f=>f?.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};
+    const meal={id:m.id,meal_number:m.meal_number,bases:linked.filter(f=>f?.type==='base').map(f=>f.name),toppings:linked.filter(f=>f?.type==='topping').map(f=>f.name),time:m.meal_time||'',memo:m.memo||'',status:m.status||'plan'};
     (plans[key]??=[]).push(meal);
   });
   Object.keys(plans).forEach(k=>plans[k].sort((a,b)=>(a.meal_number||0)-(b.meal_number||0)));
@@ -315,40 +320,28 @@ async function syncDayToCloud(date){
   if(!cloudReady||!authUser||loadingCloud)return;
   try{
     await syncFoodsToCloud();
-    const babyId=state.activeBaby;
-    if(!isUUID(babyId))return;
-    const dayMeals=meals(date);
-    const rows=dayMeals.map((m,i)=>({id:isUUID(m.id)?m.id:undefined,baby_id:babyId,meal_date:date,meal_number:i+1,status:m.status||'plan',meal_time:m.time||null,memo:m.memo||null}));
-    const payload=rows.map(r=>{const x={baby_id:r.baby_id,meal_date:r.meal_date,meal_number:r.meal_number,status:r.status,meal_time:r.meal_time,memo:r.memo};if(r.id)x.id=r.id;return x});
-    let saved=[];
-    if(payload.length){
-      const {data,error}=await supabaseClient.from('meals').upsert(payload,{onConflict:'baby_id,meal_date,meal_number'}).select();
-      if(error)throw error;saved=data||[];
+    const babyId=state.activeBaby;if(!isUUID(babyId))return;
+    const dayMeals=meals(date),saved=[];
+    for(let i=0;i<dayMeals.length;i++){
+      const m=dayMeals[i], payload={baby_id:babyId,meal_date:date,meal_number:i+1,status:m.status||'plan',meal_time:m.time||null,memo:m.memo||null};
+      let data,error;
+      if(isUUID(m.id))({data,error}=await supabaseClient.from('meals').update(payload).eq('id',m.id).select().single());
+      else ({data,error}=await supabaseClient.from('meals').insert(payload).select().single());
+      if(error)throw error; m.id=data.id;m.meal_number=i+1;saved.push(data);
     }
-    const {data:existing,error:ee}=await supabaseClient.from('meals').select('id,meal_number').eq('baby_id',babyId).eq('meal_date',date);
-    if(ee)throw ee;
-    const wanted=new Set(payload.map(x=>x.meal_number));
-    const remove=(existing||[]).filter(x=>!wanted.has(x.meal_number)).map(x=>x.id);
+    const {data:existing,error:ee}=await supabaseClient.from('meals').select('id').eq('baby_id',babyId).eq('meal_date',date);if(ee)throw ee;
+    const wanted=new Set(saved.map(x=>x.id)),remove=(existing||[]).filter(x=>!wanted.has(x.id)).map(x=>x.id);
     if(remove.length){const {error}=await supabaseClient.from('meals').delete().in('id',remove);if(error)throw error}
-    const savedByNo={};saved.forEach(m=>savedByNo[m.meal_number]=m);
     const foodRows=[...new Set(state.bases)].map(name=>({user_id:authUser.id,name,type:'base'})).concat([...new Set(state.toppings)].map(name=>({user_id:authUser.id,name,type:'topping'})));
-    const {data:foods,error:fe}=await supabaseClient.from('foods').upsert(foodRows,{onConflict:'user_id,type,name'}).select();
-    if(fe)throw fe;
+    const {data:foods,error:fe}=await supabaseClient.from('foods').upsert(foodRows,{onConflict:'user_id,type,name'}).select();if(fe)throw fe;
     const foodId={};(foods||[]).forEach(f=>foodId[`${f.type}|${f.name}`]=f.id);
-    const mealIds=Object.values(savedByNo).map(x=>x.id);
-    if(mealIds.length){const {error}=await supabaseClient.from('meal_foods').delete().in('meal_id',mealIds);if(error)throw error}
-    const links=[];
-    dayMeals.forEach((m,i)=>{
-      const mid=savedByNo[i+1]?.id||m.id;
-      if(!mid)return;
-      (m.bases||[]).forEach(n=>{const fid=foodId[`base|${n}`];if(fid)links.push({meal_id:mid,food_id:fid})});
-      (m.toppings||[]).forEach(n=>{const fid=foodId[`topping|${n}`];if(fid)links.push({meal_id:mid,food_id:fid})});
-      if(!m.id&&savedByNo[i+1])m.id=savedByNo[i+1].id;
-    });
+    const mealIds=saved.map(x=>x.id);if(mealIds.length){const {error}=await supabaseClient.from('meal_foods').delete().in('meal_id',mealIds);if(error)throw error}
+    const links=[];dayMeals.forEach(m=>{if(!m.id)return;(m.bases||[]).forEach(n=>{const fid=foodId[`base|${n}`];if(fid)links.push({meal_id:m.id,food_id:fid})});(m.toppings||[]).forEach(n=>{const fid=foodId[`topping|${n}`];if(fid)links.push({meal_id:m.id,food_id:fid})})});
     if(links.length){const {error}=await supabaseClient.from('meal_foods').insert(links);if(error)throw error}
     localStorage.setItem(KEY,JSON.stringify(state));
   }catch(e){showCloudError(e)}
 }
+
 function showCloudError(e){console.error('Supabase:',e);const msg=e?.message||'클라우드 저장에 실패했어요.';const el=document.getElementById('authMsg');if(el)authMessage(msg,'error');else console.error(msg)}
 function queueCloudSync(){clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncAllDaysToCloud(),700)}
 async function syncAllDaysToCloud(){
