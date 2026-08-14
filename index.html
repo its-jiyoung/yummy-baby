@@ -86,10 +86,8 @@ function foodsBeforeMeal(date, mealIndex){
   for(const d of dates){
     const arr=state.plans[`${state.activeBaby}_${d}`]||[];
     const limit=d===date ? mealIndex : arr.length;
-
     for(let i=0;i<limit;i++){
       const m=arr[i]||{};
-      if(m.status!=='done')continue;
       for(const x of [...(m.bases||[]),...(m.toppings||[])]){
         const key=foodKey(x);
         if(key)seen.add(key);
@@ -102,7 +100,7 @@ function foodsBeforeMeal(date, mealIndex){
 function firstFoods(date, mealIndex){
   const current=(state.plans[`${state.activeBaby}_${date}`]||[])[mealIndex];
   const first=new Set();
-  if(!current || current.status!=='done')return first;
+  if(!current)return first;
 
   const seen=foodsBeforeMeal(date,mealIndex);
   for(const x of [...(current.bases||[]),...(current.toppings||[])]){
