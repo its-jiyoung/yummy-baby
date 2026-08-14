@@ -66,7 +66,28 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&l
 function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0];return b?.birth?Math.floor((parse(k)-parse(b.birth))/86400000)+1:''}
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
 function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
-function firstFoods(){const seen=new Set(),first=new Set();Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).sort().forEach(k=>{(state.plans[k]||[]).forEach(m=>[...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x&&!seen.has(x)){seen.add(x);first.add(x)}}))});return first}
+function firstFoods(beforeDate){
+  const seen=new Set();
+
+  Object.keys(state.plans)
+    .filter(k=>k.startsWith(state.activeBaby+'_'))
+    .map(k=>k.slice(state.activeBaby.length+1))
+    .filter(date=>!beforeDate || date<beforeDate)
+    .sort()
+    .forEach(date=>{
+      const key=`${state.activeBaby}_${date}`;
+
+      (state.plans[key]||[])
+        .filter(m=>m.status==='done')
+        .forEach(m=>{
+          [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{
+            if(x) seen.add(x);
+          });
+        });
+    });
+
+  return seen;
+}
 function emoji(x){return '🥗'}
 function render(){
  const baby=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0], first=firstFoods();
@@ -75,7 +96,7 @@ function render(){
  <section class="calendar-wrap"><div class="calendar-scroll"><div class="calendar"><div class="week">${['일','월','화','수','목','금','토'].map(x=>`<div>${x}</div>`).join('')}</div><div class="days">${cells(view,first).join('')}</div></div></div><div class="legend"><span><i class="dot plan"></i> 예정</span><span><i class="dot done"></i> 먹음</span><span><i class="dot first"></i> 처음 먹는 음식</span><span>📱 아이폰에서는 가로로 밀어서 주간 전체 확인</span></div></section>
  <div class="side"><section class="panel"><h2>이번 달 처음 먹는 음식</h2><div class="food-cloud">${[...first].map(x=>`<span class="food">${emoji(x)} ${esc(x)} ★</span>`).join('')||'<div class="small">아직 계획/기록이 없어요.</div>'}</div></section><section class="panel"><h2>식단 사용법</h2><div class="notice">메인 캘린더에서 <b>앞으로 먹일 식단을 먼저 계획</b>해두고, 실제로 먹인 뒤 각 끼니의 ○ 버튼을 눌러 완료 처리하세요.<br><br>베이스와 토핑 모두 저장되고, 처음 먹는 음식은 자동으로 노란색으로 표시돼요.</div></section></div>`;
 }
-function cells(v,first){const y=v.getFullYear(),m=v.getMonth(),start=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),prev=new Date(y,m,0).getDate(),out=[];for(let i=0;i<42;i++){const n=i-start+1,date=n<=0?new Date(y,m-1,prev+n):n>days?new Date(y,m+1,n-days):new Date(y,m,n),k=fmt(date),cur=date.getMonth()===m,ms=meals(k);out.push(`<div class="day ${cur?'':'muted'} ${k===todayKey()?'today':''} ${k===selectedKey?'selected':''}" onclick="selectDay('${k}')"><div class="date-row"><div><div class="date">${date.getDate()}</div><div class="dplus">D+${dplus(k)}</div></div>${ms.length?`<span class="meal-count">${ms.length}끼</span>`:''}</div><div class="meals">${ms.map((x,i)=>mealHTML(x,i,k,first)).join('')}</div><button class="add" onclick="event.stopPropagation();openAdd('${k}')">＋ ${ms.length?'끼니 추가':'식단 계획'}</button></div>`)}return out}
+function cells(v,first){const y=v.getFullYear(),m=v.getMonth(),start=new Date(y,m,1).getDay(),days=new Date(y,m+1,0).getDate(),prev=new Date(y,m,0).getDate(),first=firstFoods(k),out=[];for(let i=0;i<42;i++){const n=i-start+1,date=n<=0?new Date(y,m-1,prev+n):n>days?new Date(y,m+1,n-days):new Date(y,m,n),k=fmt(date),cur=date.getMonth()===m,ms=meals(k);out.push(`<div class="day ${cur?'':'muted'} ${k===todayKey()?'today':''} ${k===selectedKey?'selected':''}" onclick="selectDay('${k}')"><div class="date-row"><div><div class="date">${date.getDate()}</div><div class="dplus">D+${dplus(k)}</div></div>${ms.length?`<span class="meal-count">${ms.length}끼</span>`:''}</div><div class="meals">${ms.map((x,i)=>mealHTML(x,i,k,first)).join('')}</div><button class="add" onclick="event.stopPropagation();openAdd('${k}')">＋ ${ms.length?'끼니 추가':'식단 계획'}</button></div>`)}return out}
 function mealHTML(m,i,k,first){const done=m.status==='done';return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})"><button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button><div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div><div class="base-line">🥣 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div><div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`}
 function selectDay(k){selectedKey=k;openDay(k)}
 function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
