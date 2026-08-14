@@ -67,23 +67,26 @@ function todayKey(){return fmt(new Date())}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.babies[0];return b?.birth?Math.floor((parse(k)-parse(b.birth))/86400000)+1:''}
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
-function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
+function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];localStorage.setItem(KEY,JSON.stringify(state))}
 
-function firstFoods(beforeDate){
-  const seen=new Set();
+function eatenFoodsBefore(date, mealIndex=-1){
+  const eaten=new Set();
   Object.keys(state.plans)
     .filter(k=>k.startsWith(state.activeBaby+'_'))
     .map(k=>k.slice(state.activeBaby.length+1))
-    .filter(date=>!beforeDate||date<beforeDate)
+    .filter(d=>d<date)
     .sort()
-    .forEach(date=>{
-      (state.plans[`${state.activeBaby}_${date}`]||[])
-        .filter(m=>m.status==='done')
-        .forEach(m=>{
-          [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)})
-        })
+    .forEach(d=>{
+      (state.plans[`${state.activeBaby}_${d}`]||[]).filter(m=>m.status==='done').forEach(m=>{
+        [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)eaten.add(x)})
+      });
     });
-  return seen;
+  if(mealIndex>=0){
+    (state.plans[`${state.activeBaby}_${date}`]||[]).slice(0,mealIndex).filter(m=>m.status==='done').forEach(m=>{
+      [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)eaten.add(x)});
+    });
+  }
+  return eaten;
 }
 function monthlyFirstFoods(){
   const seenBefore=new Set(), introduced=new Set();
@@ -129,21 +132,22 @@ function cells(v){
   for(let i=0;i<42;i++){
     const n=i-start+1;
     const date=n<=0?new Date(y,m-1,prev+n):n>days?new Date(y,m+1,n-days):new Date(y,m,n);
-    const k=fmt(date),cur=date.getMonth()===m,ms=meals(k),first=firstFoods(k);
+    const k=fmt(date),cur=date.getMonth()===m,ms=meals(k);
     out.push(`<div class="day ${cur?'':'muted'} ${k===todayKey()?'today':''} ${k===selectedKey?'selected':''}" onclick="selectDay('${k}')">
 <div class="date-row"><div><div class="date">${date.getDate()}</div><div class="dplus">D+${dplus(k)}</div></div>${ms.length?`<span class="meal-count">${ms.length}끼</span>`:''}</div>
-<div class="meals">${ms.map((x,i)=>mealHTML(x,i,k,first)).join('')}</div>
+<div class="meals">${ms.map((x,i)=>mealHTML(x,i,k)).join('')}</div>
 <button class="add" onclick="event.stopPropagation();openAdd('${k}')">＋ ${ms.length?'끼니 추가':'식단 계획'}</button></div>`);
   }
   return out;
 }
-function mealHTML(m,i,k,first){
+function mealHTML(m,i,k){
   const done=m.status==='done';
+  const eatenBefore=eatenFoodsBefore(k,i);
   return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})">
 <button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button>
 <div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div>
 <div class="base-line">🍚 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div>
-<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${!done&&first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${!done&&first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
+<div class="toppings">${(m.toppings||[]).map(x=>{const isFirst=!done&&!eatenBefore.has(x);return `<span class="chip ${isFirst?'first':''}">${emoji(x)} ${esc(x)}${isFirst?' ★':''}</span>`}).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
 }
 function selectDay(k){selectedKey=k;openDay(k)}
 function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
