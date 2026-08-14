@@ -69,38 +69,62 @@ function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.b
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
 function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];localStorage.setItem(KEY,JSON.stringify(state))}
 
+function foodKey(x){
+  return String(x ?? '').trim().replace(/\s+/g,' ');
+}
+
+// "처음 먹은 음식"은 실제로 먹은(done) 끼니를 날짜 → 끼니 순서로
+// 훑어서 판단한다. 같은 음식명이 공백 차이로 저장돼 있어도 같은 음식으로 본다.
 function foodsBeforeMeal(date, mealIndex){
   const seen=new Set();
-  const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d<=date).sort();
+  const dates=Object.keys(state.plans)
+    .filter(k=>k.startsWith(state.activeBaby+'_'))
+    .map(k=>k.slice(state.activeBaby.length+1))
+    .filter(d=>d<=date)
+    .sort();
+
   for(const d of dates){
-    const dayMeals=state.plans[`${state.activeBaby}_${d}`]||[];
-    const limit=d===date?mealIndex:dayMeals.length;
+    const arr=state.plans[`${state.activeBaby}_${d}`]||[];
+    const limit=d===date ? mealIndex : arr.length;
+
     for(let i=0;i<limit;i++){
-      const m=dayMeals[i]||{};
-      [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)});
+      const m=arr[i]||{};
+      if(m.status!=='done')continue;
+      for(const x of [...(m.bases||[]),...(m.toppings||[])]){
+        const key=foodKey(x);
+        if(key)seen.add(key);
+      }
     }
   }
   return seen;
 }
-function foodsBeforeMeal(date,mealIndex){
-  const seen=new Set();
-  const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d<=date).sort();
-  for(const d of dates){
-    const arr=state.plans[`${state.activeBaby}_${d}`]||[], limit=d===date?mealIndex:arr.length;
-    for(let i=0;i<limit;i++){const m=arr[i]||{};if(m.status!=='done')continue;for(const x of [...(m.bases||[]),...(m.toppings||[])])if(x)seen.add(x)}}
-  return seen;
-}
-function firstFoods(date,mealIndex){
-  const current=(state.plans[`${state.activeBaby}_${date}`]||[])[mealIndex], first=new Set();
-  if(!current||current.status!=='done')return first;
+
+function firstFoods(date, mealIndex){
+  const current=(state.plans[`${state.activeBaby}_${date}`]||[])[mealIndex];
+  const first=new Set();
+  if(!current || current.status!=='done')return first;
+
   const seen=foodsBeforeMeal(date,mealIndex);
-  for(const x of [...(current.bases||[]),...(current.toppings||[])])if(x&&!seen.has(x))first.add(x);
+  for(const x of [...(current.bases||[]),...(current.toppings||[])]){
+    const key=foodKey(x);
+    if(key && !seen.has(key))first.add(key);
+  }
   return first;
 }
+
 function monthlyFirstFoods(){
-  const introduced=new Set(), month=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
-  const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d.startsWith(month)).sort();
-  for(const date of dates){const arr=state.plans[`${state.activeBaby}_${date}`]||[];for(let i=0;i<arr.length;i++)firstFoods(date,i).forEach(x=>introduced.add(x))}
+  const introduced=new Set();
+  const month=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
+  const dates=Object.keys(state.plans)
+    .filter(k=>k.startsWith(state.activeBaby+'_'))
+    .map(k=>k.slice(state.activeBaby.length+1))
+    .filter(d=>d.startsWith(month))
+    .sort();
+
+  for(const date of dates){
+    const arr=state.plans[`${state.activeBaby}_${date}`]||[];
+    for(let i=0;i<arr.length;i++)firstFoods(date,i).forEach(x=>introduced.add(x));
+  }
   return introduced;
 }
 function emoji(x){return '🥗'}
@@ -134,8 +158,8 @@ function cells(v){
 }
 function mealHTML(m,i,k,first){
   const done=m.status==='done';
-  const baseHtml=(m.bases||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">🍚 ${esc(x)}${first.has(x)?' ★':''}</span>`).join('');
-  const toppingHtml=(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('');
+  const baseHtml=(m.bases||[]).map(x=>`<span class="chip ${first.has(foodKey(x))?'first':''}">🍚 ${esc(x)}${first.has(foodKey(x))?' ★':''}</span>`).join('');
+  const toppingHtml=(m.toppings||[]).map(x=>`<span class="chip ${first.has(foodKey(x))?'first':''}">${emoji(x)} ${esc(x)}${first.has(foodKey(x))?' ★':''}</span>`).join('');
   return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})"><button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button><div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div><div class="toppings">${baseHtml}${toppingHtml}${!baseHtml&&!toppingHtml?'<span class="empty-meal">식재료 미정</span>':''}</div></div>`;
 }
 function selectDay(k){selectedKey=k;openDay(k)}
