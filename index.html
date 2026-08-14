@@ -69,57 +69,33 @@ function dplus(k){const b=state.babies.find(x=>x.id===state.activeBaby)||state.b
 function meals(k){return state.plans[`${state.activeBaby}_${k}`]||[]}
 function setMeals(k,a){const key=`${state.activeBaby}_${k}`;if(a.length)state.plans[key]=a;else delete state.plans[key];save()}
 
-function firstFoods(beforeDate, mealIndex=-1){
+function foodsBeforeMeal(date, mealIndex){
   const seen=new Set();
-  const prefix=`${state.activeBaby}_`;
-  const dates=Object.keys(state.plans)
-    .filter(k=>k.startsWith(prefix))
-    .map(k=>k.slice(prefix.length))
-    .filter(date=>date<beforeDate)
-    .sort();
-
-  dates.forEach(date=>{
-    (state.plans[`${prefix}${date}`]||[])
-      .filter(m=>m.status==='done')
-      .forEach(m=>{
-        [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)})
-      });
-  });
-
-  // 같은 날짜의 앞선 끼니에서 이미 먹은 음식도 반영
-  if(mealIndex>=0){
-    (state.plans[`${prefix}${beforeDate}`]||[])
-      .slice(0, mealIndex + 1)
-      .filter(m=>m.status==='done')
-      .forEach(m=>{
-        [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)})
-      });
+  const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d<=date).sort();
+  for(const d of dates){
+    const dayMeals=state.plans[`${state.activeBaby}_${d}`]||[];
+    const limit=d===date?mealIndex:dayMeals.length;
+    for(let i=0;i<limit;i++){
+      const m=dayMeals[i]||{};
+      [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{if(x)seen.add(x)});
+    }
   }
-
   return seen;
 }
-
+function firstFoods(date,mealIndex){
+  const seen=foodsBeforeMeal(date,mealIndex), current=(state.plans[`${state.activeBaby}_${date}`]||[])[mealIndex], first=new Set();
+  if(!current)return first;
+  [...(current.bases||[]),...(current.toppings||[])].forEach(x=>{if(x&&!seen.has(x))first.add(x)});
+  return first;
+}
 function monthlyFirstFoods(){
-  const seenBefore=new Set(), introduced=new Set();
+  const introduced=new Set();
   const month=`${view.getFullYear()}-${String(view.getMonth()+1).padStart(2,'0')}`;
-  const dates=Object.keys(state.plans)
-    .filter(k=>k.startsWith(state.activeBaby+'_'))
-    .map(k=>k.slice(state.activeBaby.length+1))
-    .filter(d=>d.startsWith(month))
-    .sort();
-  dates.forEach(date=>{
-    const mealsToday=state.plans[`${state.activeBaby}_${date}`]||[];
-    mealsToday.filter(m=>m.status==='done').forEach(m=>{
-      [...(m.bases||[]),...(m.toppings||[])].forEach(x=>{
-        if(!seenBefore.has(x))introduced.add(x);
-      });
-    });
-    mealsToday.filter(m=>m.status==='done').forEach(m=>{
-      [...(m.bases||[]),...(m.toppings||[])].forEach(x=>seenBefore.add(x));
-    });
-  });
-  const prior=firstFoods(dates[0]);
-  prior.forEach(x=>introduced.delete(x));
+  const dates=Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)).filter(d=>d.startsWith(month)).sort();
+  for(const date of dates){
+    const dayMeals=state.plans[`${state.activeBaby}_${date}`]||[];
+    for(let i=0;i<dayMeals.length;i++) if(dayMeals[i].status==='done') firstFoods(date,i).forEach(x=>introduced.add(x));
+  }
   return introduced;
 }
 function emoji(x){return '🥗'}
@@ -153,16 +129,14 @@ function cells(v){
 }
 function mealHTML(m,i,k,first){
   const done=m.status==='done';
-  return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})">
-<button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button>
-<div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div>
-<div class="base-line">🍚 ${m.bases?.length?esc(m.bases.join(' + ')):'베이스 미정'}</div>
-<div class="toppings">${(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('')||'<span class="empty-meal">토핑 미정</span>'}</div></div>`;
+  const baseHtml=(m.bases||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">🍚 ${esc(x)}${first.has(x)?' ★':''}</span>`).join('');
+  const toppingHtml=(m.toppings||[]).map(x=>`<span class="chip ${first.has(x)?'first':''}">${emoji(x)} ${esc(x)}${first.has(x)?' ★':''}</span>`).join('');
+  return `<div class="meal ${done?'done':'plan'}" onclick="event.stopPropagation();openAdd('${k}',${i})"><button class="status" title="완료 상태 전환" onclick="event.stopPropagation();toggleDone('${k}',${i})">${done?'✓':'○'}</button><div class="meal-head"><span class="meal-no">${i+1}끼</span><span class="time">${esc(m.time||'')}</span></div><div class="toppings">${baseHtml}${toppingHtml}${!baseHtml&&!toppingHtml?'<span class="empty-meal">식재료 미정</span>':''}</div></div>`;
 }
 function selectDay(k){selectedKey=k;openDay(k)}
 function moveMonth(n){view.setMonth(view.getMonth()+n);render()}
 function goToday(){view=new Date();view.setDate(1);selectedKey=todayKey();render()}
-function toggleDone(k,i){const a=meals(k).slice();if(!a[i])return;a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render();queueDaySync(k)}
+function toggleDone(k,i){const a=meals(k).slice();if(!a[i])return;a[i]={...a[i],status:a[i].status==='done'?'plan':'done'};setMeals(k,a);render();queueSyncDay(k)}
 function openAdd(k=todayKey(),idx=-1){
   selectedKey=k;const a=meals(k),m=idx>=0?a[idx]:{bases:[],toppings:[],time:'',memo:'',status:'plan'};
   window.fb=[...(m.bases||[])];window.ft=[...(m.toppings||[])];
@@ -180,14 +154,14 @@ function toggleFood(el,type,x){const a=type==='b'?window.fb:window.ft,i=a.indexO
 function saveMeal(k,idx){
   const a=meals(k).slice(),m={bases:[...window.fb],toppings:[...window.ft],time:document.getElementById('mealTime').value,memo:document.getElementById('memo').value,status:window.fstatus||'plan'};
   if(idx>=0)a[idx]={...a[idx],...m};else a.push(m);
-  setMeals(k,a);closeSheet();render();queueDaySync(k);
+  setMeals(k,a);closeSheet();render();queueSyncDay(k);
 }
 async function deleteMeal(k,idx){
   const a=meals(k).slice();if(idx<0||idx>=a.length)return;
   const removed=a[idx];a.splice(idx,1);setMeals(k,a);closeSheet();render();
   try{
     if(cloudReady&&removed.id){const {error}=await supabaseClient.from('meals').delete().eq('id',removed.id);if(error)throw error}
-    await queueDaySync(k);
+    await queueSyncDay(k);
   }catch(e){console.error(e);alert('삭제한 끼니를 서버에 반영하지 못했어요. 다시 시도해주세요.')}
 }
 function openDay(k){
@@ -335,6 +309,8 @@ async function syncFoodsToCloud(){
     if(rows.length){const {error}=await supabaseClient.from('foods').upsert(rows,{onConflict:'user_id,type,name'});if(error)throw error}
   }catch(e){showCloudError(e)}
 }
+const mealSyncQueues=new Map();
+function queueSyncDay(date){const prev=mealSyncQueues.get(date)||Promise.resolve();const next=prev.catch(()=>{}).then(()=>syncDayToCloud(date));mealSyncQueues.set(date,next);next.finally(()=>{if(mealSyncQueues.get(date)===next)mealSyncQueues.delete(date)});return next}
 async function syncDayToCloud(date){
   if(!cloudReady||!authUser||loadingCloud)return;
   try{
@@ -374,17 +350,7 @@ async function syncDayToCloud(date){
   }catch(e){showCloudError(e)}
 }
 function showCloudError(e){console.error('Supabase:',e);const msg=e?.message||'클라우드 저장에 실패했어요.';const el=document.getElementById('authMsg');if(el)authMessage(msg,'error');else console.error(msg)}
-function queueDaySync(date){
-  if(!cloudReady||!authUser||loadingCloud)return cloudSyncQueue;
-  cloudSyncQueue=cloudSyncQueue.then(()=>syncDayToCloud(date)).catch(e=>{console.error(e)});
-  return cloudSyncQueue;
-}
-function queueCloudSync(){
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer=setTimeout(()=>{
-    cloudSyncQueue=cloudSyncQueue.then(()=>syncAllDaysToCloud()).catch(e=>console.error(e));
-  },700);
-}
+function queueCloudSync(){clearTimeout(cloudSyncTimer);cloudSyncTimer=setTimeout(()=>syncAllDaysToCloud(),700)}
 async function syncAllDaysToCloud(){
   if(!cloudReady||!authUser||loadingCloud)return;
   const dates=[...new Set(Object.keys(state.plans).filter(k=>k.startsWith(state.activeBaby+'_')).map(k=>k.slice(state.activeBaby.length+1)))];
