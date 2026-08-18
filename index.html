@@ -52,6 +52,7 @@ let state=load();
 let view=new Date(); view.setDate(1);
 let selectedKey=todayKey();
 let supabaseClient=null, cloudReady=false, cloudSyncTimer=null, loadingCloud=false, authUser=null;
+let activeAccessToken='', authLoadPromise=null, authRecoveryPromise=null;
 
 function getConfig(){
   try{return JSON.parse(localStorage.getItem(CONFIG_KEY)||'null')||{url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}
@@ -264,8 +265,13 @@ function restore(){const input=document.createElement('input');input.type='file'
 
 async function signIn(email,password){
   if(!supabaseClient)return authMessage('Supabase 연결 설정을 먼저 완료해주세요.','error');
-  const {error}=await supabaseClient.auth.signInWithPassword({email,password});
-  if(error)authMessage(error.message,'error');
+  let result=await supabaseClient.auth.signInWithPassword({email,password});
+  // Safari 등에 잘못된 시간의 세션이 남아 있으면 현재 기기의 세션만 지우고 한 번 재시도한다.
+  if(result.error&&isTokenTimeError(result.error)){
+    await clearLocalAuthSession();
+    result=await supabaseClient.auth.signInWithPassword({email,password});
+  }
+  if(result.error)authMessage(authErrorMessage(result.error),'error');
 }
 async function signUp(email,password,babyName,birth){
   if(!supabaseClient)return authMessage('Supabase 연결 설정을 먼저 완료해주세요.','error');
@@ -285,7 +291,7 @@ async function resetPassword(email){
   const {error}=await supabaseClient.auth.resetPasswordForEmail(email,redirect?{redirectTo:redirect}:{});
   if(error)authMessage(error.message,'error');else authMessage('비밀번호 재설정 메일을 보냈어요.','success');
 }
-async function logout(){await supabaseClient.auth.signOut();closeSheet()}
+async function logout(){await supabaseClient.auth.signOut({scope:'local'});closeSheet()}
 function authMessage(msg,type='info'){const el=document.getElementById('authMsg');if(el){el.className='auth-msg '+(type==='error'?'auth-error':type==='success'?'auth-success':'');el.textContent=msg;el.hidden=false}}
 function authTab(mode){document.getElementById('authMode').value=mode;document.querySelectorAll('.auth-tab').forEach(x=>x.classList.toggle('on',x.dataset.mode===mode));const signup=mode==='signup';document.getElementById('signupFields').hidden=!signup;document.getElementById('authSubmit').textContent=signup?'회원가입':'로그인';document.getElementById('forgotBtn').hidden=signup;document.getElementById('authMsg').hidden=true}
 function renderAuth(){
@@ -395,18 +401,54 @@ async function syncAllDaysToCloud(){
 async function onSignedIn(user){
   authUser=user;loadingCloud=true;cloudReady=false;
   document.getElementById('app').innerHTML='<main class="auth-screen"><section class="auth-card"><div class="auth-logo">🥣</div><div class="auth-title">불러오는 중...</div><div class="auth-sub">식단을 안전하게 가져오고 있어요.</div></section></main>';
-  try{await loadCloudState();cloudReady=true;loadingCloud=false;render();}catch(e){loadingCloud=false;renderAuth();authMessage(e.message||'데이터를 불러오지 못했어요.','error')}
+  try{await loadCloudState();cloudReady=true;loadingCloud=false;render();}
+  catch(e){
+    loadingCloud=false;
+    if(isTokenTimeError(e))return recoverInvalidSession(e);
+    renderAuth();authMessage(e.message||'데이터를 불러오지 못했어요.','error');
+  }
+}
+
+function isTokenTimeError(error){
+  const message=String(error?.message||error||'').toLowerCase();
+  return message.includes('jwt issued at future')||message.includes('issued in the future')||message.includes('not before')||message.includes('jwt expired')||message.includes('invalid jwt');
+}
+function authErrorMessage(error){
+  if(isTokenTimeError(error))return '로그인 정보의 시간이 맞지 않아 세션을 초기화했어요. 기기의 날짜와 시간을 자동으로 설정한 뒤 다시 로그인해주세요.';
+  return error?.message||'로그인하지 못했어요. 잠시 후 다시 시도해주세요.';
+}
+async function clearLocalAuthSession(){
+  activeAccessToken='';authUser=null;cloudReady=false;loadingCloud=false;
+  try{await supabaseClient.auth.signOut({scope:'local'});}catch(e){console.warn('로컬 로그인 정보 정리 실패:',e)}
+}
+function recoverInvalidSession(error){
+  if(authRecoveryPromise)return authRecoveryPromise;
+  authRecoveryPromise=new Promise(resolve=>setTimeout(resolve,0)).then(async()=>{
+    await clearLocalAuthSession();
+    renderAuth();
+    authMessage(authErrorMessage(error),'error');
+  }).finally(()=>{authRecoveryPromise=null});
+  return authRecoveryPromise;
+}
+function activateSession(session){
+  if(!session?.user)return Promise.resolve();
+  if(activeAccessToken===session.access_token&&(authLoadPromise||authUser))return authLoadPromise||Promise.resolve();
+  activeAccessToken=session.access_token||'';
+  if(authUser?.id===session.user.id&&cloudReady)return Promise.resolve();
+  authLoadPromise=onSignedIn(session.user).finally(()=>{authLoadPromise=null});
+  return authLoadPromise;
 }
 async function initApp(){
   if(!isConfigured()){renderAuth();return}
   initClient();
-  supabaseClient.auth.onAuthStateChange(async(event,session)=>{
+  supabaseClient.auth.onAuthStateChange((event,session)=>{
     if(session?.user&&(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='TOKEN_REFRESHED')){
-      if(!authUser||authUser.id!==session.user.id)await onSignedIn(session.user)
-    }else if(event==='SIGNED_OUT'){authUser=null;cloudReady=false;renderAuth()}
+      setTimeout(()=>activateSession(session),0);
+    }else if(event==='SIGNED_OUT'){activeAccessToken='';authUser=null;cloudReady=false;renderAuth()}
   });
-  const {data}=await supabaseClient.auth.getSession();
-  if(data.session)await onSignedIn(data.session.user);else renderAuth();
+  const {data,error}=await supabaseClient.auth.getSession();
+  if(error){if(isTokenTimeError(error))await recoverInvalidSession(error);else{renderAuth();authMessage(authErrorMessage(error),'error')}return}
+  if(data.session)await activateSession(data.session);else renderAuth();
 }
 initApp();
 </script>
