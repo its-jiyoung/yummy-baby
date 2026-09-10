@@ -402,11 +402,11 @@ async function syncAllDaysToCloud(){
 async function onSignedIn(user){
   authUser=user;loadingCloud=true;cloudReady=false;
   document.getElementById('app').innerHTML='<main class="auth-screen"><section class="auth-card"><div class="auth-logo">🥣</div><div class="auth-title">불러오는 중...</div><div class="auth-sub">식단을 안전하게 가져오고 있어요.</div></section></main>';
-  try{await loadCloudState();cloudReady=true;loadingCloud=false;render();}
+  try{await loadCloudStateWithRetry();cloudReady=true;loadingCloud=false;render();}
   catch(e){
     loadingCloud=false;
     if(isTokenTimeError(e))return recoverInvalidSession(e);
-    renderAuth();authMessage(e.message||'데이터를 불러오지 못했어요.','error');
+    renderAuth();authMessage(isNetworkError(e)?authErrorMessage(e):(e.message||'데이터를 불러오지 못했어요.'),'error');
   }
 }
 
@@ -414,8 +414,26 @@ function isTokenTimeError(error){
   const message=String(error?.message||error||'').toLowerCase();
   return message.includes('jwt issued at future')||message.includes('issued in the future')||message.includes('not before')||message.includes('jwt expired')||message.includes('invalid jwt');
 }
+function isNetworkError(error){
+  const message=String(error?.message||error||'').toLowerCase();
+  return message==='load failed'||message.includes('failed to fetch')||message.includes('network request failed')||message.includes('networkerror');
+}
+function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+async function loadCloudStateWithRetry(){
+  let lastError;
+  for(let attempt=0;attempt<3;attempt++){
+    try{return await loadCloudState()}
+    catch(error){
+      lastError=error;
+      if(!isNetworkError(error)||attempt===2)throw error;
+      await wait(700*(attempt+1));
+    }
+  }
+  throw lastError;
+}
 function authErrorMessage(error){
   if(isTokenTimeError(error))return '로그인 정보의 시간이 맞지 않아 세션을 초기화했어요. 기기의 날짜와 시간을 자동으로 설정한 뒤 다시 로그인해주세요.';
+  if(isNetworkError(error))return 'Supabase 서버에 연결하지 못했어요. 인터넷 연결을 확인한 뒤 잠시 후 다시 로그인해주세요.';
   return error?.message||'로그인하지 못했어요. 잠시 후 다시 시도해주세요.';
 }
 async function clearLocalAuthSession(){
