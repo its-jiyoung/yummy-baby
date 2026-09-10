@@ -31,7 +31,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<div class="app" id="app"></div>
+<div class="app" id="app"><main class="auth-screen"><section class="auth-card"><div class="auth-logo">🥣</div><div class="auth-title">불러오는 중...</div><div class="auth-sub">잠시만 기다려주세요.</div></section></main></div>
 <div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
 <button type="button" class="fab" onclick="openAdd()">＋ 식단 추가</button>
 <script>
@@ -52,14 +52,18 @@ let state=load();
 let view=new Date(); view.setDate(1);
 let selectedKey=todayKey();
 let supabaseClient=null, cloudReady=false, cloudSyncTimer=null, loadingCloud=false, authUser=null;
-let activeAccessToken='', authLoadPromise=null, authRecoveryPromise=null;
+let activeAccessToken='', authLoadPromise=null, authRecoveryPromise=null, loggingOut=false;
 
 function getConfig(){
   try{return JSON.parse(localStorage.getItem(CONFIG_KEY)||'null')||{url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}
   catch(e){return {url:DEFAULT_SUPABASE_URL,key:DEFAULT_PUBLISHABLE_KEY}}
 }
 function isConfigured(){const c=getConfig();return !!c.url&&!!c.key&&!c.key.includes('PASTE_YOUR')}
-function initClient(){if(!isConfigured())return false;const c=getConfig();supabaseClient=window.supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});return true}
+function initClient(){
+  if(!isConfigured())return false;
+  if(!window.supabase?.createClient)throw new Error('SUPABASE_LIBRARY_LOAD_FAILED');
+  const c=getConfig();supabaseClient=window.supabase.createClient(c.url,c.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});return true;
+}
 function getRedirectUrl(){return /^https?:$/.test(location.protocol)?location.origin+location.pathname:undefined}
 function load(){try{return {...structuredClone(defaultState),...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){return structuredClone(defaultState)}}
 function save(){localStorage.setItem(KEY,JSON.stringify(state));if(cloudReady)queueCloudSync()}
@@ -266,13 +270,17 @@ function restore(){const input=document.createElement('input');input.type='file'
 
 async function signIn(email,password){
   if(!supabaseClient)return authMessage('Supabase 연결 설정을 먼저 완료해주세요.','error');
-  let result=await supabaseClient.auth.signInWithPassword({email,password});
-  // Safari 등에 잘못된 시간의 세션이 남아 있으면 현재 기기의 세션만 지우고 한 번 재시도한다.
-  if(result.error&&isTokenTimeError(result.error)){
-    await clearLocalAuthSession();
-    result=await supabaseClient.auth.signInWithPassword({email,password});
+  try{
+    let result=await supabaseClient.auth.signInWithPassword({email,password});
+    // Safari 등에 잘못된 시간의 세션이 남아 있으면 현재 기기의 세션만 지우고 한 번 재시도한다.
+    if(result.error&&isTokenTimeError(result.error)){
+      await clearLocalAuthSession();
+      result=await supabaseClient.auth.signInWithPassword({email,password});
+    }
+    if(result.error)authMessage(authErrorMessage(result.error),'error');
+  }catch(error){
+    authMessage(authErrorMessage(error),'error');
   }
-  if(result.error)authMessage(authErrorMessage(result.error),'error');
 }
 async function signUp(email,password,babyName,birth){
   if(!supabaseClient)return authMessage('Supabase 연결 설정을 먼저 완료해주세요.','error');
@@ -292,7 +300,16 @@ async function resetPassword(email){
   const {error}=await supabaseClient.auth.resetPasswordForEmail(email,redirect?{redirectTo:redirect}:{});
   if(error)authMessage(error.message,'error');else authMessage('비밀번호 재설정 메일을 보냈어요.','success');
 }
-async function logout(){await supabaseClient.auth.signOut({scope:'local'});closeSheet()}
+function authStorageKey(){
+  try{return `sb-${new URL(getConfig().url).hostname.split('.')[0]}-auth-token`}catch(e){return ''}
+}
+function removeStoredAuthSession(){const key=authStorageKey();if(key)try{localStorage.removeItem(key)}catch(e){console.warn(e)}}
+function logout(){
+  loggingOut=true;activeAccessToken='';authUser=null;cloudReady=false;loadingCloud=false;
+  closeSheet();removeStoredAuthSession();
+  try{supabaseClient?.auth.stopAutoRefresh();supabaseClient?.auth.signOut({scope:'local'}).catch(()=>{})}catch(e){console.warn(e)}
+  setTimeout(()=>location.reload(),50);
+}
 function authMessage(msg,type='info'){const el=document.getElementById('authMsg');if(el){el.className='auth-msg '+(type==='error'?'auth-error':type==='success'?'auth-success':'');el.textContent=msg;el.hidden=false}}
 function authTab(mode){document.getElementById('authMode').value=mode;document.querySelectorAll('.auth-tab').forEach(x=>x.classList.toggle('on',x.dataset.mode===mode));const signup=mode==='signup';document.getElementById('signupFields').hidden=!signup;document.getElementById('authSubmit').textContent=signup?'회원가입':'로그인';document.getElementById('forgotBtn').hidden=signup;document.getElementById('authMsg').hidden=true}
 function renderAuth(){
@@ -432,6 +449,8 @@ async function loadCloudStateWithRetry(){
   throw lastError;
 }
 function authErrorMessage(error){
+  if(String(error?.message||error)==='SUPABASE_LIBRARY_LOAD_FAILED')return '필수 로그인 모듈을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해주세요.';
+  if(String(error?.message||error)==='AUTH_INIT_TIMEOUT')return '로그인 확인이 지연되고 있어요. 인터넷 연결을 확인하고 다시 시도해주세요.';
   if(isTokenTimeError(error))return '로그인 정보의 시간이 맞지 않아 세션을 초기화했어요. 기기의 날짜와 시간을 자동으로 설정한 뒤 다시 로그인해주세요.';
   if(isNetworkError(error))return 'Supabase 서버에 연결하지 못했어요. 인터넷 연결을 확인한 뒤 잠시 후 다시 로그인해주세요.';
   return error?.message||'로그인하지 못했어요. 잠시 후 다시 시도해주세요.';
@@ -450,6 +469,7 @@ function recoverInvalidSession(error){
   return authRecoveryPromise;
 }
 function activateSession(session){
+  if(loggingOut)return Promise.resolve();
   if(!session?.user)return Promise.resolve();
   if(activeAccessToken===session.access_token&&(authLoadPromise||authUser))return authLoadPromise||Promise.resolve();
   activeAccessToken=session.access_token||'';
@@ -458,18 +478,27 @@ function activateSession(session){
   return authLoadPromise;
 }
 async function initApp(){
-  if(!isConfigured()){renderAuth();return}
-  initClient();
-  supabaseClient.auth.onAuthStateChange((event,session)=>{
-    if(session?.user&&(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='TOKEN_REFRESHED')){
-      setTimeout(()=>activateSession(session),0);
-    }else if(event==='SIGNED_OUT'){activeAccessToken='';authUser=null;cloudReady=false;renderAuth()}
-  });
-  const {data,error}=await supabaseClient.auth.getSession();
-  if(error){if(isTokenTimeError(error))await recoverInvalidSession(error);else{renderAuth();authMessage(authErrorMessage(error),'error')}return}
-  if(data.session)await activateSession(data.session);else renderAuth();
+  try{
+    if(!isConfigured()){renderAuth();return}
+    initClient();
+    supabaseClient.auth.onAuthStateChange((event,session)=>{
+      if(loggingOut)return;
+      if(session?.user&&(event==='INITIAL_SESSION'||event==='SIGNED_IN'||event==='TOKEN_REFRESHED')){
+        setTimeout(()=>activateSession(session),0);
+      }else if(event==='SIGNED_OUT'){activeAccessToken='';authUser=null;cloudReady=false;renderAuth()}
+    });
+    const sessionResult=await Promise.race([
+      supabaseClient.auth.getSession(),
+      wait(8000).then(()=>{throw new Error('AUTH_INIT_TIMEOUT')})
+    ]);
+    const {data,error}=sessionResult;
+    if(error){if(isTokenTimeError(error))await recoverInvalidSession(error);else{renderAuth();authMessage(authErrorMessage(error),'error')}return}
+    if(data.session)await activateSession(data.session);else renderAuth();
+  }catch(error){
+    console.error('앱 초기화 실패:',error);renderAuth();authMessage(authErrorMessage(error),'error');
+  }
 }
-initApp();
+initApp().catch(error=>{console.error(error);renderAuth();authMessage(authErrorMessage(error),'error')});
 </script>
 </body>
 </html>
